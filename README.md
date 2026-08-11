@@ -6,9 +6,10 @@ using an LLM, and autofills application forms. A browser extension
 `packages/shared`.
 
 **Status:** early scaffolding. `packages/shared` (Zod schemas), `apps/web`'s
-Prisma schema, its `StorageAdapter`/`VercelBlobAdapter` port, and a bare
-Next.js App Router shell exist so far — no auth, no API routes, no real UI
-yet. See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for the full
+Prisma schema, its `StorageAdapter`/`VercelBlobAdapter` port, NextAuth login,
+personal access tokens, and CRUD APIs for profile/search-criteria/job-board
+sources all exist — but there's no UI yet (no login page, no forms), and no
+Plugin. See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for the full
 design/decisions doc before making architectural changes.
 
 ## Repo layout
@@ -43,18 +44,32 @@ npm install
 cp apps/web/.env.example apps/web/.env
 ```
 
-Set `DATABASE_URL` in that file to a real Postgres connection string once
-you're ready to generate the Prisma client or run migrations — it isn't
-required just to validate the schema. `BLOB_READ_WRITE_TOKEN` is only needed
-once code actually calls `getStorageAdapter()` (from `apps/web/lib/storage`)
-to read/write resume blobs.
+Set `DATABASE_URL` in that file to a real Postgres connection string before
+running migrations or starting the app — the API routes need a live
+database. `AUTH_SECRET` is required for NextAuth (`openssl rand -base64 32`).
+`BLOB_READ_WRITE_TOKEN` is only needed once code actually calls
+`getStorageAdapter()` (from `apps/web/lib/storage`) to read/write resume
+blobs.
+
+The Prisma client regenerates automatically after `npm install` (a
+`postinstall` script) — you only need to run `prisma:generate` by hand after
+pulling a schema change without a fresh install.
 
 ### Database (Prisma)
 
 ```bash
 just web-prisma-validate   # check prisma/schema.prisma, no DB connection needed
-just web-prisma-generate   # generate the Prisma client
+just web-prisma-generate   # regenerate the Prisma client
 just web-prisma-migrate    # apply/create migrations against DATABASE_URL
+```
+
+### Create a user
+
+There's no public signup flow (decision #5: a few trusted testers, not
+general-purpose SaaS auth). Provision accounts directly:
+
+```bash
+npm run create-user --workspace=apps/web -- <email> <password>
 ```
 
 ### Run the web app
@@ -75,21 +90,76 @@ just web-build   # next build
 | `just typecheck`        | `npm run typecheck`                               | `tsc --noEmit` in every workspace that has it  |
 | `just shared-typecheck` | `npm run typecheck --workspace=packages/shared`   | Typecheck just the shared package              |
 | `just web-prisma-validate` | `npm run prisma:validate --workspace=apps/web` | Validate the Prisma schema                     |
-| `just ci`               | —                                                  | Runs format-check + lint + typecheck + prisma validate, same as CI |
+| `just test`             | `npm run test --workspaces --if-present`          | Every workspace's test suite (needs the test DB) |
+| `just ci`               | —                                                  | Everything CI runs: format-check, lint, typecheck, prisma validate, test |
 
 No root npm script wraps `just ci`; if you don't have `just` installed, run
-the four `npm run ...` commands above individually instead.
+the `npm run ...` commands above individually instead.
+
+## API
+
+All routes live under `apps/web/app/api`. Two auth methods, resolved by
+`getAuthContext()` (`apps/web/lib/auth/context.ts`):
+
+- **Session** (NextAuth cookie) — the logged-in Web App UI
+- **PAT** (`Authorization: Bearer jmc_pat_...`) — the Plugin, issued via
+  `POST /api/tokens`
+
+| Route | Methods | Auth |
+| --- | --- | --- |
+| `/api/auth/[...nextauth]` | NextAuth handlers | — |
+| `/api/tokens` | GET, POST | session only (a PAT can't mint more PATs) |
+| `/api/tokens/[id]` | DELETE (revoke) | session only |
+| `/api/profile` | GET, PUT | GET: session or PAT · PUT: session only |
+| `/api/search-criteria` | GET, POST | GET: session or PAT · POST: session only |
+| `/api/search-criteria/[id]` | GET, PATCH, DELETE | session or PAT (GET) / session only (mutate) |
+| `/api/job-board-sources` | GET, POST | session only |
+| `/api/job-board-sources/[id]` | GET, PATCH, DELETE | session only |
+
+Request/response bodies are validated against the Zod schemas in
+`packages/shared`. A criteria set's `isDefault: true` is exclusive per user —
+setting it on one unsets it on the others, in a transaction.
 
 ## Testing
 
-No test suite exists yet. The plan for one — unit tests for Zod schemas and
-field-mapper heuristics, Playwright integration tests against static ATS
-fixtures, fixture-based crawler tests, and a manual test-site matrix — is
-recorded in `.claude/plan.md` §6, to be implemented alongside the features
-they cover.
+[Vitest](https://vitest.dev), one config per workspace. Two kinds of test,
+distinguished by filename suffix so they can be run separately:
+
+- **`*.unit.test.ts`** — pure functions, no database (password hashing, PAT
+  generation, `nullsToUndefined`, error mapping, the `VercelBlobAdapter`
+  against a mocked `@vercel/blob`, and every schema in `packages/shared`)
+- **`*.feature.test.ts`** — everything that touches Postgres: every API
+  route handler (called directly, not over HTTP), `lib/auth/context.ts`'s
+  session/PAT resolution, and the `create-user` script (both as a direct
+  function call and spawned as the real CLI subprocess)
+
+Feature tests need a real database — copy the test env file and point it at
+a *separate* database from your dev one (tests create/delete rows freely):
+
+```bash
+cp apps/web/.env.test.example apps/web/.env.test   # edit DATABASE_URL
+createdb jobmatch_test                              # or your Postgres equivalent
+DATABASE_URL=<the .env.test one> npx prisma migrate deploy --schema apps/web/prisma/schema.prisma
+```
+
+Route/auth feature tests mock `@/auth` (the NextAuth boundary) rather than
+`lib/auth/context.ts`, so the real session-vs-PAT resolution logic still
+runs under test — see `apps/web/test/mock-auth.ts`.
+
+```bash
+just test              # everything, every workspace (needs the test DB)
+just web-test-unit      # apps/web unit tests only, no DB needed
+just web-test-feature   # apps/web feature tests only
+just shared-test         # packages/shared (all unit — no DB involved)
+```
+
+Not yet covered: the Plugin doesn't exist yet, so there's no autofill/field-
+mapper testing (Playwright against static ATS fixtures) or crawler fixture
+tests — both are still just plans, in `.claude/plan.md` §6.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push/PR to `main` and `dev`:
-`npm ci`, Prettier check, ESLint, workspace typecheck, and Prisma schema
-validation. There's no test step yet since there's no test suite to run.
+`.github/workflows/ci.yml` runs on every push/PR to `main` and `dev`, against
+a Postgres 16 service container: `npm ci`, Prettier check, ESLint, workspace
+typecheck, Prisma schema validation, `prisma migrate deploy`, then the full
+test suite.
