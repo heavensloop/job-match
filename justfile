@@ -47,6 +47,9 @@ web-dev:
 web-build:
     npm run build --workspace=apps/web
 
+web-start:
+    npm run start --workspace=apps/web
+
 web-typecheck:
     npm run typecheck --workspace=apps/web --if-present
 

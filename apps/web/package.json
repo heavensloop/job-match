@@ -3,16 +3,29 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:validate": "prisma validate"
+    "prisma:validate": "prisma validate",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@jobmatch/shared": "*",
-    "@prisma/client": "^7.0.0"
+    "@prisma/client": "^7.0.0",
+    "@vercel/blob": "^2.8.0",
+    "next": "^16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "dotenv": "^16.6.1",
-    "prisma": "^7.0.0"
+    "eslint-config-next": "^16.3.0",
+    "prisma": "^7.0.0",
+    "typescript": "^5.5.4"
   }
 }
