@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { VettingResultSchema } from "./vettingResult.js";
+import { VettingResultSchema } from "./vettingResult";
 
 export const ApplicationDraftStatusSchema = z.enum([
   "reviewed",

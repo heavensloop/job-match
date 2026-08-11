@@ -16,7 +16,5 @@ export const JobBoardSourceSchema = z.object({
   cadence: CrawlCadenceSchema.default("daily"),
   lastFetchedAt: z.coerce.date().nullable().default(null),
   enabled: z.boolean().default(true),
-
-  updatedAt: z.coerce.date(),
 });
 export type JobBoardSource = z.infer<typeof JobBoardSourceSchema>;

@@ -31,13 +31,21 @@ format:
 format-check:
     npm run format:check
 
+# Run every workspace's test suite (needs DATABASE_URL for apps/web's
+# feature tests — see apps/web/.env.test.example)
+test:
+    npm run test --workspaces --if-present
+
 # Everything CI runs, in one shot
-ci: format-check lint typecheck web-prisma-validate
+ci: format-check lint typecheck web-prisma-validate test
 
 # --- packages/shared ---------------------------------------------------------
 
 shared-typecheck:
     npm run typecheck --workspace=packages/shared
+
+shared-test:
+    npm run test --workspace=packages/shared
 
 # --- apps/web ----------------------------------------------------------------
 
@@ -46,6 +54,9 @@ web-dev:
 
 web-build:
     npm run build --workspace=apps/web
+
+web-start:
+    npm run start --workspace=apps/web
 
 web-typecheck:
     npm run typecheck --workspace=apps/web --if-present
@@ -61,6 +72,22 @@ web-prisma-generate:
 # Apply pending migrations in dev, creating one if the schema changed
 web-prisma-migrate:
     npm run prisma:migrate --workspace=apps/web
+
+# Provision a trusted-tester account (no public signup flow, decision #5)
+web-create-user email password:
+    npm run create-user --workspace=apps/web -- {{ email }} {{ password }}
+
+# All apps/web tests (needs DATABASE_URL — see .env.test.example)
+web-test:
+    npm run test --workspace=apps/web
+
+# Pure-function tests only, no database needed
+web-test-unit:
+    npm run test:unit --workspace=apps/web
+
+# DB-backed route/script tests only
+web-test-feature:
+    npm run test:feature --workspace=apps/web
 
 # --- apps/plugin ---------------------------------------------------------------
 
