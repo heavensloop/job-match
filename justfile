@@ -19,6 +19,21 @@ install:
 typecheck:
     npm run typecheck --workspaces --if-present
 
+# Lint all js/ts files
+lint:
+    npm run lint
+
+# Format all js/ts/json/md files in place
+format:
+    npm run format
+
+# Check formatting without writing (used in CI)
+format-check:
+    npm run format:check
+
+# Everything CI runs, in one shot
+ci: format-check lint typecheck web-prisma-validate
+
 # --- packages/shared ---------------------------------------------------------
 
 shared-typecheck:

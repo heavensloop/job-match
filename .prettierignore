@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+.next/
+.vercel/
+package-lock.json
+apps/web/prisma/migrations/
+
+# Hand-formatted prose docs; not in scope for the js/ts formatter
+*.md
