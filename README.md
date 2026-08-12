@@ -7,10 +7,11 @@ using an LLM, and autofills application forms. A browser extension
 
 **Status:** early scaffolding. `packages/shared` (Zod schemas), `apps/web`'s
 Prisma schema, its `StorageAdapter`/`VercelBlobAdapter` port, NextAuth login,
-personal access tokens, and CRUD APIs for profile/search-criteria/job-board
-sources all exist — but there's no UI yet (no login page, no forms), and no
-Plugin. See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for the full
-design/decisions doc before making architectural changes.
+personal access tokens, CRUD APIs for profile/search-criteria/job-board
+sources, the pluggable LLM provider (`lib/llm`), and the vetting/resume-parse
+endpoints all exist — but there's no UI yet (no login page, no forms), and no
+Plugin, and no crawler. See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for
+the full design/decisions doc before making architectural changes.
 
 ## Repo layout
 
@@ -111,14 +112,38 @@ All routes live under `apps/web/app/api`. Two auth methods, resolved by
 | `/api/tokens` | GET, POST | session only (a PAT can't mint more PATs) |
 | `/api/tokens/[id]` | DELETE (revoke) | session only |
 | `/api/profile` | GET, PUT | GET: session or PAT · PUT: session only |
+| `/api/profile/parse` | POST | session only |
 | `/api/search-criteria` | GET, POST | GET: session or PAT · POST: session only |
 | `/api/search-criteria/[id]` | GET, PATCH, DELETE | session or PAT (GET) / session only (mutate) |
 | `/api/job-board-sources` | GET, POST | session only |
 | `/api/job-board-sources/[id]` | GET, PATCH, DELETE | session only |
+| `/api/vet` | POST | session or PAT |
 
 Request/response bodies are validated against the Zod schemas in
 `packages/shared`. A criteria set's `isDefault: true` is exclusive per user —
 setting it on one unsets it on the others, in a transaction.
+
+### LLM calls (`/api/vet`, `/api/profile/parse`)
+
+Decision #18: the LLM call happens server-side, but the user's own key never
+touches Postgres — it's read from the request, used once, and discarded.
+Both endpoints require:
+
+- `X-LLM-Provider: claude | openai | free` — which provider to call
+  (`lib/llm/get-provider.ts`; `free` is Groq, serving open-weight models)
+- `X-LLM-Api-Key: <the user's own key for that provider>`
+
+`POST /api/vet` upserts a `jobs_seen` row for the job url (`sourceId: null`
+if it wasn't already known from a crawl), then caches the result: a repeat
+call with an unchanged profile and criteria set returns the existing
+`application_drafts` row instead of paying for another LLM call. A response
+that fails to parse as JSON, or doesn't match the expected schema, is a 502
+(the LLM misbehaved), not a 400/500.
+
+`POST /api/profile/parse` is stateless — it takes already-extracted resume
+or LinkedIn-export text and returns a suggested structured parse; it doesn't
+write to the profile. That happens separately, via `PUT /api/profile`, once
+the user has reviewed the suggestion.
 
 ## Testing
 
