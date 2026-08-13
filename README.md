@@ -9,19 +9,23 @@ using an LLM, and autofills application forms. A browser extension
 Prisma schema, its `StorageAdapter`/`VercelBlobAdapter` port, NextAuth login,
 personal access tokens, CRUD APIs for profile/search-criteria/job-board
 sources, the pluggable LLM provider (`lib/llm`), the vetting/resume-parse
-endpoints, and `apps/plugin`'s shell (settings storage, PAT/LLM-key entry,
-sync loop) all exist — but there's no Web App UI yet (no login page, no
-forms), and the Plugin doesn't detect job pages or autofill anything yet.
-See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for the full
-design/decisions doc before making architectural changes.
+endpoints, and `apps/plugin`'s job detection + badge on LinkedIn/Greenhouse
+(settings storage, PAT/LLM-key entry, sync loop, content script, badge)
+all exist — but there's no Web App UI yet (no login page, no forms), and
+the Plugin doesn't autofill anything yet. See [CLAUDE.md](CLAUDE.md) and
+`.claude/plan.md` for the full design/decisions doc before making
+architectural changes.
 
 ## Repo layout
 
 ```
 apps/
-  plugin/      MV3 browser extension, bundled with esbuild. So far: settings
-               storage (chrome.storage.local), PAT/LLM-key entry popup, a
-               background sync loop. No content scripts/badge/autofill yet
+  plugin/      MV3 browser extension, bundled with esbuild. Settings storage
+               (chrome.storage.local), PAT/LLM-key/active-criteria entry
+               popup, a background sync loop, and a content script that
+               detects job pages on LinkedIn/Greenhouse and shows a score
+               badge (JSON-LD -> Open Graph -> heading+CTA detection,
+               lib/host-registry.ts). No autofill yet
   web/         Next.js app (App Router): Prisma schema, lib/storage
                (StorageAdapter port + VercelBlobAdapter), lib/llm
 packages/
@@ -143,6 +147,7 @@ All routes live under `apps/web/app/api`. Two auth methods, resolved by
 | `/api/job-board-sources` | GET, POST | session only |
 | `/api/job-board-sources/[id]` | GET, PATCH, DELETE | session only |
 | `/api/vet` | POST | session or PAT |
+| `/api/jobs-seen` | GET | session or PAT |
 
 Request/response bodies are validated against the Zod schemas in
 `packages/shared`. A criteria set's `isDefault: true` is exclusive per user —
@@ -169,6 +174,10 @@ that fails to parse as JSON, or doesn't match the expected schema, is a 502
 or LinkedIn-export text and returns a suggested structured parse; it doesn't
 write to the profile. That happens separately, via `PUT /api/profile`, once
 the user has reviewed the suggestion.
+
+`GET /api/jobs-seen?url=` is the Plugin badge's "have I seen this before"
+check (decision #22) — no LLM headers, just a `jobs_seen` lookup returning
+`{ firstSeenAt: string | null }`.
 
 ## Testing
 
@@ -206,13 +215,20 @@ just plugin-test         # apps/plugin (all unit — no browser/DB involved)
 
 `apps/plugin`'s tests run under Node, not a real browser — `test/mock-chrome.ts`
 stubs just enough of `chrome.storage.local`/`chrome.storage.onChanged` (an
-in-memory store) for `lib/storage.ts` and `lib/sync.ts` to run against, the
-same way LLM provider tests stub `fetch` rather than hitting a real API.
+in-memory store) for `lib/storage.ts`/`lib/sync.ts`/`lib/vet-client.ts` to
+run against, the same way LLM provider tests stub `fetch` rather than
+hitting a real API. `lib/host-registry.ts`'s `detectJob()` builds fixture
+`Document`s via jsdom (`// @vitest-environment jsdom` per test file) rather
+than a live browser, checked against real Greenhouse/LinkedIn page
+structure by hand, not automated.
 
-Not yet covered: the Plugin doesn't detect job pages or autofill anything
-yet, so there's no autofill/field-mapper testing (Playwright against static
-ATS fixtures) or crawler fixture tests — both are still just plans, in
-`.claude/plan.md` §6.
+Not yet covered: the Plugin doesn't autofill anything yet, so there's no
+field-mapper testing (Playwright against static ATS fixtures) or crawler
+fixture tests — both are still just plans, in `.claude/plan.md` §6. Job
+detection is currently only verified against 2 hosts (LinkedIn, Greenhouse)
+via the fixtures in `host-registry.unit.test.ts` — real-page correctness
+for those and any additional hosts still needs the "manual matrix" §6
+describes.
 
 ## CI
 
