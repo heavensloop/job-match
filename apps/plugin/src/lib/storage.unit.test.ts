@@ -19,7 +19,6 @@ describe("settings", () => {
   it("returns defaults when nothing is stored", async () => {
     const settings = await getSettings();
     expect(settings).toEqual({
-      apiBaseUrl: "http://localhost:3000",
       pat: null,
       llmProvider: null,
       llmApiKey: null,
@@ -33,14 +32,11 @@ describe("settings", () => {
 
     expect(settings.pat).toBe("jmc_pat_abc");
     expect(settings.llmProvider).toBe("claude");
-    expect(settings.apiBaseUrl).toBe("http://localhost:3000");
   });
 
   it("persists across separate get calls", async () => {
-    await setSettings({ apiBaseUrl: "https://jobmatch.example.com" });
-    expect((await getSettings()).apiBaseUrl).toBe(
-      "https://jobmatch.example.com",
-    );
+    await setSettings({ pat: "jmc_pat_abc" });
+    expect((await getSettings()).pat).toBe("jmc_pat_abc");
   });
 });
 

@@ -3,6 +3,7 @@ import {
   type ApplicationDraft,
 } from "@jobmatch/shared";
 import { apiFetch } from "./api-client";
+import { WEB_APP_URL } from "./config";
 import { getSettings } from "./storage";
 import type { DetectedJob } from "./host-registry";
 
@@ -29,7 +30,7 @@ export async function vetJob(
 
   try {
     const res = await apiFetch("/api/vet", {
-      apiBaseUrl: settings.apiBaseUrl,
+      apiBaseUrl: WEB_APP_URL,
       pat: settings.pat,
       init: {
         method: "POST",
@@ -81,7 +82,7 @@ export async function checkSeen(jobUrl: string): Promise<CheckSeenResult> {
     const res = await apiFetch(
       `/api/jobs-seen?url=${encodeURIComponent(jobUrl)}`,
       {
-        apiBaseUrl: settings.apiBaseUrl,
+        apiBaseUrl: WEB_APP_URL,
         pat: settings.pat,
       },
     );

@@ -4,7 +4,6 @@ import type { LlmProviderId, SearchCriteria } from "@jobmatch/shared";
 // (decisions #6/#18: active criteria selection and the LLM key are local
 // UI state / never persisted server-side).
 export interface PluginSettings {
-  apiBaseUrl: string;
   pat: string | null;
   llmProvider: LlmProviderId | null;
   llmApiKey: string | null;
@@ -18,7 +17,6 @@ export interface SyncState {
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
-  apiBaseUrl: "http://localhost:3000",
   pat: null,
   llmProvider: null,
   llmApiKey: null,

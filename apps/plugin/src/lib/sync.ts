@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SearchCriteriaSchema } from "@jobmatch/shared";
 import { apiFetch } from "./api-client";
+import { WEB_APP_URL } from "./config";
 import { getSettings, setSyncState } from "./storage";
 
 // Periodically refreshes the cached criteria-set list (via the PAT) so the
@@ -10,16 +11,17 @@ import { getSettings, setSyncState } from "./storage";
 export async function runSync(): Promise<void> {
   const settings = await getSettings();
 
+  // Not connected yet isn't a sync *failure* — the popup's account section
+  // already shows "Not connected"/Login, so this only clears any stale
+  // error from before rather than adding a redundant one.
   if (!settings.pat) {
-    await setSyncState({
-      lastSyncError: "No personal access token configured",
-    });
+    await setSyncState({ lastSyncError: null });
     return;
   }
 
   try {
     const res = await apiFetch("/api/search-criteria", {
-      apiBaseUrl: settings.apiBaseUrl,
+      apiBaseUrl: WEB_APP_URL,
       pat: settings.pat,
     });
 
