@@ -8,18 +8,22 @@ using an LLM, and autofills application forms. A browser extension
 **Status:** early scaffolding. `packages/shared` (Zod schemas), `apps/web`'s
 Prisma schema, its `StorageAdapter`/`VercelBlobAdapter` port, NextAuth login,
 personal access tokens, CRUD APIs for profile/search-criteria/job-board
-sources, the pluggable LLM provider (`lib/llm`), and the vetting/resume-parse
-endpoints all exist — but there's no UI yet (no login page, no forms), and no
-Plugin, and no crawler. See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for
-the full design/decisions doc before making architectural changes.
+sources, the pluggable LLM provider (`lib/llm`), the vetting/resume-parse
+endpoints, and `apps/plugin`'s shell (settings storage, PAT/LLM-key entry,
+sync loop) all exist — but there's no Web App UI yet (no login page, no
+forms), and the Plugin doesn't detect job pages or autofill anything yet.
+See [CLAUDE.md](CLAUDE.md) and `.claude/plan.md` for the full
+design/decisions doc before making architectural changes.
 
 ## Repo layout
 
 ```
 apps/
-  plugin/      MV3 browser extension (not yet scaffolded)
+  plugin/      MV3 browser extension, bundled with esbuild. So far: settings
+               storage (chrome.storage.local), PAT/LLM-key entry popup, a
+               background sync loop. No content scripts/badge/autofill yet
   web/         Next.js app (App Router): Prisma schema, lib/storage
-               (StorageAdapter port + VercelBlobAdapter)
+               (StorageAdapter port + VercelBlobAdapter), lib/llm
 packages/
   shared/      Zod domain schemas, no build step, consumed as source
 ```
@@ -80,6 +84,24 @@ just web-dev     # next dev, http://localhost:3000
 just web-build   # next build
 ```
 
+### Load the Plugin
+
+```bash
+just plugin-build   # esbuild -> apps/plugin/dist/
+```
+
+Then in Chrome/Edge: `chrome://extensions` → enable Developer mode → "Load
+unpacked" → select `apps/plugin/dist`. `just plugin-dev` runs the same build
+in esbuild's `--watch` mode; reload the extension in `chrome://extensions`
+after each rebuild (esbuild writes the files, it doesn't reload the browser
+for you).
+
+In the popup: paste in a PAT (`just web-create-user` an account, log in, then
+issue one via `POST /api/tokens` — there's no PAT-management UI yet) and an
+LLM key, then Save. `manifest.json`'s `host_permissions` currently only
+covers `localhost:3000`/`localhost:3100`; update it before pointing the
+Plugin at a deployed Web App.
+
 ## Common commands
 
 | `just` recipe        | npm equivalent                                  | What it does                                  |
@@ -92,6 +114,9 @@ just web-build   # next build
 | `just shared-typecheck` | `npm run typecheck --workspace=packages/shared`   | Typecheck just the shared package              |
 | `just web-prisma-validate` | `npm run prisma:validate --workspace=apps/web` | Validate the Prisma schema                     |
 | `just test`             | `npm run test --workspaces --if-present`          | Every workspace's test suite (needs the test DB) |
+| `just plugin-build`     | `npm run build --workspace=apps/plugin`           | esbuild the extension to `apps/plugin/dist/`   |
+| `just plugin-typecheck` | `npm run typecheck --workspace=apps/plugin`       | Typecheck just the Plugin                      |
+| `just plugin-test`      | `npm run test --workspace=apps/plugin`            | Plugin tests (all unit, no DB involved)        |
 | `just ci`               | —                                                  | Everything CI runs: format-check, lint, typecheck, prisma validate, test |
 
 No root npm script wraps `just ci`; if you don't have `just` installed, run
@@ -176,11 +201,18 @@ just test              # everything, every workspace (needs the test DB)
 just web-test-unit      # apps/web unit tests only, no DB needed
 just web-test-feature   # apps/web feature tests only
 just shared-test         # packages/shared (all unit — no DB involved)
+just plugin-test         # apps/plugin (all unit — no browser/DB involved)
 ```
 
-Not yet covered: the Plugin doesn't exist yet, so there's no autofill/field-
-mapper testing (Playwright against static ATS fixtures) or crawler fixture
-tests — both are still just plans, in `.claude/plan.md` §6.
+`apps/plugin`'s tests run under Node, not a real browser — `test/mock-chrome.ts`
+stubs just enough of `chrome.storage.local`/`chrome.storage.onChanged` (an
+in-memory store) for `lib/storage.ts` and `lib/sync.ts` to run against, the
+same way LLM provider tests stub `fetch` rather than hitting a real API.
+
+Not yet covered: the Plugin doesn't detect job pages or autofill anything
+yet, so there's no autofill/field-mapper testing (Playwright against static
+ATS fixtures) or crawler fixture tests — both are still just plans, in
+`.claude/plan.md` §6.
 
 ## CI
 
