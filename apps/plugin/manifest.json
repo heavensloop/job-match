@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Scores job postings against your profile and autofills applications.",
   "permissions": ["storage", "alarms"],
-  "host_permissions": ["http://localhost:3000/*", "http://localhost:3100/*"],
+  "host_permissions": ["__WEB_APP_URL__/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -16,6 +16,11 @@
         "https://job-boards.greenhouse.io/*/jobs/*"
       ],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["__WEB_APP_URL__/connect*"],
+      "js": ["connect-bridge.js"],
       "run_at": "document_idle"
     }
   ],

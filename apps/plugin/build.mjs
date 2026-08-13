@@ -1,8 +1,16 @@
+import "dotenv/config";
 import { build, context } from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 
 const watch = process.argv.includes("--watch");
 const outdir = "dist";
+const webAppUrl = process.env.WEB_APP_URL ?? "http://localhost:3000";
 
 rmSync(outdir, { recursive: true, force: true });
 mkdirSync(outdir, { recursive: true });
@@ -12,6 +20,7 @@ const options = {
     background: "src/background.ts",
     popup: "src/popup.ts",
     content: "src/content.ts",
+    "connect-bridge": "src/connect-bridge.ts",
   },
   bundle: true,
   outdir,
@@ -20,10 +29,17 @@ const options = {
   format: "iife",
   target: "es2022",
   sourcemap: true,
+  define: {
+    "process.env.WEB_APP_URL": JSON.stringify(webAppUrl),
+  },
 };
 
 function copyStaticFiles() {
-  cpSync("manifest.json", `${outdir}/manifest.json`);
+  const manifest = readFileSync("manifest.json", "utf8").replaceAll(
+    "__WEB_APP_URL__",
+    webAppUrl,
+  );
+  writeFileSync(`${outdir}/manifest.json`, manifest);
   cpSync("public/popup.html", `${outdir}/popup.html`);
 }
 

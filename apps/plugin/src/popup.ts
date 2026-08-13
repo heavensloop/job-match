@@ -1,5 +1,12 @@
 import type { LlmProviderId } from "@jobmatch/shared";
-import { getSettings, getSyncState, setSettings } from "./lib/storage";
+import { WEB_APP_URL } from "./lib/config";
+import {
+  getSettings,
+  getSyncState,
+  setSettings,
+  setSyncState,
+} from "./lib/storage";
+import { getTabState } from "./lib/tab-state";
 
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -7,14 +14,78 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+const jobInfoEl = el<HTMLElement>("job-info");
+const accountStatusEl = el<HTMLDivElement>("account-status");
+const loginButton = el<HTMLButtonElement>("login-button");
+const logoutButton = el<HTMLButtonElement>("logout-button");
+const settingsButton = el<HTMLButtonElement>("settings-button");
+const settingsCloseButton = el<HTMLButtonElement>("settings-close");
 const form = el<HTMLFormElement>("settings-form");
-const apiBaseUrlInput = el<HTMLInputElement>("apiBaseUrl");
-const patInput = el<HTMLInputElement>("pat");
 const activeCriteriaSelect = el<HTMLSelectElement>("activeCriteriaId");
 const llmProviderSelect = el<HTMLSelectElement>("llmProvider");
 const llmApiKeyInput = el<HTMLInputElement>("llmApiKey");
 const syncNowButton = el<HTMLButtonElement>("sync-now");
 const statusEl = el<HTMLDivElement>("status");
+
+function textEl(tag: string, text: string, className?: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+// Job title/company/gap text all come from the page the content script
+// read — untrusted input. Built via textContent, never innerHTML, so
+// nothing in a crafted job posting can inject markup into the popup.
+async function renderJobInfo() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const state = tab?.id === undefined ? null : await getTabState(tab.id);
+
+  jobInfoEl.replaceChildren();
+
+  if (!state) {
+    jobInfoEl.append(textEl("p", "No job page detected on this tab."));
+    return;
+  }
+
+  jobInfoEl.append(
+    textEl("p", `${state.job.title} at ${state.job.company}`, "job-title"),
+  );
+
+  if (state.status === "checking") {
+    jobInfoEl.append(textEl("p", "Checking match…"));
+    return;
+  }
+
+  if (!state.vetResult || !state.vetResult.ok) {
+    const message =
+      state.vetResult && !state.vetResult.ok
+        ? state.vetResult.error
+        : "Something went wrong.";
+    jobInfoEl.append(textEl("p", message, "error"));
+    return;
+  }
+
+  const { score, gaps } = state.vetResult.draft.vettingSnapshot;
+  const topGap = gaps.find((gap) => gap.severity === "high") ?? gaps[0];
+
+  jobInfoEl.append(textEl("p", `${score}/100`, "score"));
+  if (topGap) jobInfoEl.append(textEl("p", topGap.description, "gap"));
+
+  if (state.seenResult?.ok && state.seenResult.firstSeenAt) {
+    const seenDate = new Date(
+      state.seenResult.firstSeenAt,
+    ).toLocaleDateString();
+    jobInfoEl.append(textEl("p", `You viewed this on ${seenDate}`, "seen"));
+  }
+}
+
+function renderAccount(settings: { pat: string | null }) {
+  const connected = settings.pat !== null;
+  accountStatusEl.textContent = connected ? "Connected" : "Not connected";
+  loginButton.hidden = connected;
+  logoutButton.hidden = !connected;
+}
 
 // Decision #7: active criteria is explicitly picked, never auto-selected —
 // this dropdown is what makes that choice, from whatever runSync() has
@@ -64,10 +135,9 @@ async function renderStatus() {
 
 async function loadForm() {
   const settings = await getSettings();
-  apiBaseUrlInput.value = settings.apiBaseUrl;
-  patInput.value = settings.pat ?? "";
   llmProviderSelect.value = settings.llmProvider ?? "claude";
   llmApiKeyInput.value = settings.llmApiKey ?? "";
+  renderAccount(settings);
   await renderCriteriaOptions(settings.activeCriteriaId);
   await renderStatus();
 }
@@ -76,8 +146,6 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   void (async () => {
     await setSettings({
-      apiBaseUrl: apiBaseUrlInput.value.trim() || "http://localhost:3000",
-      pat: patInput.value.trim() || null,
       activeCriteriaId: activeCriteriaSelect.value || null,
       llmProvider: (llmProviderSelect.value as LlmProviderId) || null,
       llmApiKey: llmApiKeyInput.value.trim() || null,
@@ -94,13 +162,52 @@ syncNowButton.addEventListener("click", () => {
   statusEl.textContent = "Syncing...";
 });
 
-// Reflect background-driven sync updates (alarm-triggered, or the
-// "sync-now" message above) while the popup happens to be open.
+settingsButton.addEventListener("click", () => {
+  settingsButton.hidden = true;
+  form.hidden = false;
+});
+
+settingsCloseButton.addEventListener("click", () => {
+  form.hidden = true;
+  settingsButton.hidden = false;
+});
+
+loginButton.addEventListener("click", () => {
+  chrome.tabs.create({ url: `${WEB_APP_URL}/login` });
+});
+
+// Local disconnect only — clears the stored PAT and the criteria list it
+// synced, but doesn't revoke the token server-side (the popup only ever
+// holds the token's secret, not its DB id). Revoke it from /connect if
+// you want the token itself invalidated too.
+logoutButton.addEventListener("click", () => {
+  void (async () => {
+    await setSettings({ pat: null, activeCriteriaId: null });
+    await setSyncState({
+      criteria: [],
+      lastSyncedAt: null,
+      lastSyncError: null,
+    });
+    await loadForm();
+  })();
+});
+
+// Reflect background-driven updates while the popup happens to be open:
+// sync results (settings, "local" area), the connect-bridge auto-handoff
+// writing a PAT into "settings" (also "local"), and job-detection/vetting
+// results (tab-state, "session" area).
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && "syncState" in changes) {
     void renderStatus();
     void renderCriteriaOptions(activeCriteriaSelect.value || null);
   }
+  if (areaName === "local" && "settings" in changes) {
+    void (async () => renderAccount(await getSettings()))();
+  }
+  if (areaName === "session") {
+    void renderJobInfo();
+  }
 });
 
 void loadForm();
+void renderJobInfo();

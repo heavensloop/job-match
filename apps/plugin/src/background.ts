@@ -1,9 +1,19 @@
 import { runSync } from "./lib/sync";
 import { checkSeen, vetJob } from "./lib/vet-client";
+import { clearTabState, setTabState } from "./lib/tab-state";
+import { setActionIcon } from "./lib/action-icon";
+import { setSettings } from "./lib/storage";
 import type { BackgroundMessage } from "./lib/messages";
 
 const SYNC_ALARM = "jobmatch-sync";
 const SYNC_INTERVAL_MINUTES = 15;
+
+// Temporary, verbose on purpose: tracing the connect handoff while
+// diagnosing why the Plugin sometimes doesn't pick up an auto-generated
+// token. Check this in chrome://extensions -> JobMatch Copilot ->
+// "Inspect views service worker" -> Console.
+const LOG = "[jobmatch:background]";
+console.log(LOG, "service worker started");
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_INTERVAL_MINUTES });
@@ -14,23 +24,81 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SYNC_ALARM) void runSync();
 });
 
+async function handleJobDetected(
+  tabId: number,
+  job: Extract<BackgroundMessage, { type: "job-detected" }>["job"],
+) {
+  await setTabState(tabId, { job, status: "checking" });
+  await setActionIcon(tabId, "checking");
+
+  // checkSeen before vetJob, not in parallel: vetJob's own jobs_seen
+  // upsert would otherwise make a genuine first-ever view look
+  // "seen today" if checkSeen read the row after vetJob just created it.
+  const seenResult = await checkSeen(job.jobUrl);
+  const vetResult = await vetJob(job);
+
+  await setTabState(tabId, {
+    status: vetResult.ok ? "ready" : "error",
+    vetResult,
+    seenResult,
+  });
+  await setActionIcon(
+    tabId,
+    vetResult.ok ? "ready" : "error",
+    vetResult.ok ? String(vetResult.draft.vettingSnapshot.score) : undefined,
+  );
+}
+
 // The content script has no direct API access (no PAT/LLM key in the page
-// context) — it messages the background service worker for both the
-// "sync-now" fire-and-forget case and the request/response vet-job /
-// check-seen calls the badge (§5.2) needs.
-chrome.runtime.onMessage.addListener(
-  (message: BackgroundMessage, _sender, sendResponse) => {
-    if (message?.type === "sync-now") {
-      void runSync();
-      return;
-    }
-    if (message?.type === "vet-job") {
-      void vetJob(message.job).then(sendResponse);
-      return true;
-    }
-    if (message?.type === "check-seen") {
-      void checkSeen(message.jobUrl).then(sendResponse);
-      return true;
-    }
-  },
-);
+// context) — it messages the background service worker, which owns the
+// PAT/key and does the actual fetch.
+chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender) => {
+  console.log(
+    LOG,
+    "onMessage:",
+    message?.type,
+    "from",
+    sender.tab?.url ?? "popup",
+  );
+  if (message?.type === "sync-now") {
+    void runSync();
+    return;
+  }
+  if (message?.type === "job-detected") {
+    const tabId = sender.tab?.id;
+    if (tabId !== undefined) void handleJobDetected(tabId, message.job);
+    return;
+  }
+  if (message?.type === "pat-detected") {
+    console.log(
+      LOG,
+      `pat-detected: saving PAT (${message.pat.slice(0, 12)}…) to settings`,
+    );
+    setSettings({ pat: message.pat })
+      .then((settings) =>
+        console.log(
+          LOG,
+          "pat-detected: settings saved, pat is now",
+          settings.pat ? "set" : "null",
+        ),
+      )
+      .catch((err: unknown) =>
+        console.error(LOG, "pat-detected: setSettings failed", err),
+      );
+    return;
+  }
+});
+
+// Keep tab-state (and the toolbar badge) from outliving the page it came
+// from — a closed tab's state is meaningless, and a fresh navigation
+// should clear the previous page's job info rather than show it stale.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void clearTabState(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading") {
+    void clearTabState(tabId);
+    void setActionIcon(tabId, "none");
+  }
+});

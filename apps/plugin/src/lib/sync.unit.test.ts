@@ -30,12 +30,12 @@ const validCriteria = {
 };
 
 describe("runSync", () => {
-  it("records an error and skips the request when there's no PAT", async () => {
+  it("skips the request and clears any stale error when there's no PAT", async () => {
     await runSync();
 
     expect(fetchMock).not.toHaveBeenCalled();
     const state = await getSyncState();
-    expect(state.lastSyncError).toMatch(/no personal access token/i);
+    expect(state.lastSyncError).toBeNull();
   });
 
   it("caches the criteria list on a successful sync", async () => {
