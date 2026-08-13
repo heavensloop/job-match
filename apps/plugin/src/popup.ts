@@ -39,10 +39,16 @@ function textEl(tag: string, text: string, className?: string): HTMLElement {
 // read — untrusted input. Built via textContent, never innerHTML, so
 // nothing in a crafted job posting can inject markup into the popup.
 async function renderJobInfo() {
+  jobInfoEl.replaceChildren();
+
+  const settings = await getSettings();
+  if (!settings.vettingEnabled) {
+    jobInfoEl.append(textEl("p", "Page scanning is off."));
+    return;
+  }
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const state = tab?.id === undefined ? null : await getTabState(tab.id);
-
-  jobInfoEl.replaceChildren();
 
   if (!state) {
     jobInfoEl.append(textEl("p", "No job page detected on this tab."));
@@ -217,6 +223,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
   if (areaName === "local" && "settings" in changes) {
     void (async () => renderAccount(await getSettings()))();
+    void renderJobInfo();
   }
   if (areaName === "session") {
     void renderJobInfo();
