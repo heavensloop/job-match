@@ -14,6 +14,7 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+const vettingToggle = el<HTMLInputElement>("vetting-toggle");
 const jobInfoEl = el<HTMLElement>("job-info");
 const accountStatusEl = el<HTMLDivElement>("account-status");
 const loginButton = el<HTMLButtonElement>("login-button");
@@ -135,12 +136,25 @@ async function renderStatus() {
 
 async function loadForm() {
   const settings = await getSettings();
+  vettingToggle.checked = settings.vettingEnabled;
   llmProviderSelect.value = settings.llmProvider ?? "claude";
   llmApiKeyInput.value = settings.llmApiKey ?? "";
   renderAccount(settings);
   await renderCriteriaOptions(settings.activeCriteriaId);
   await renderStatus();
 }
+
+vettingToggle.addEventListener("change", () => {
+  void (async () => {
+    const settings = await setSettings({
+      vettingEnabled: vettingToggle.checked,
+    });
+    chrome.runtime.sendMessage({
+      type: "vetting-toggled",
+      enabled: settings.vettingEnabled,
+    });
+  })();
+});
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();

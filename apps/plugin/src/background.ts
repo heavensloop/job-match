@@ -1,8 +1,8 @@
 import { runSync } from "./lib/sync";
 import { checkSeen, vetJob } from "./lib/vet-client";
 import { clearTabState, setTabState } from "./lib/tab-state";
-import { setActionIcon } from "./lib/action-icon";
-import { setSettings } from "./lib/storage";
+import { setActionIcon, setToggleIcon } from "./lib/action-icon";
+import { getSettings, setSettings } from "./lib/storage";
 import type { BackgroundMessage } from "./lib/messages";
 
 const SYNC_ALARM = "jobmatch-sync";
@@ -15,9 +15,22 @@ const SYNC_INTERVAL_MINUTES = 15;
 const LOG = "[jobmatch:background]";
 console.log(LOG, "service worker started");
 
+// No manifest default_icon is declared (see lib/action-icon.ts), so the
+// toolbar icon only ever reflects reality once this has run at least
+// once — on install and on every browser/service-worker restart.
+async function applyStoredToggleIcon() {
+  const settings = await getSettings();
+  await setToggleIcon(settings.vettingEnabled);
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_INTERVAL_MINUTES });
   void runSync();
+  void applyStoredToggleIcon();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void applyStoredToggleIcon();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -67,6 +80,10 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender) => {
   if (message?.type === "job-detected") {
     const tabId = sender.tab?.id;
     if (tabId !== undefined) void handleJobDetected(tabId, message.job);
+    return;
+  }
+  if (message?.type === "vetting-toggled") {
+    void setToggleIcon(message.enabled);
     return;
   }
   if (message?.type === "pat-detected") {

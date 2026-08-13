@@ -1,4 +1,5 @@
 import { detectJob, matchHost } from "./lib/host-registry";
+import { getSettings } from "./lib/storage";
 import type { BackgroundMessage } from "./lib/messages";
 
 // Detection only — everything after this (checkSeen/vetJob, tab-state, the
@@ -6,8 +7,13 @@ import type { BackgroundMessage } from "./lib/messages";
 // the score/gap/"seen before" info lives in the popup, not an in-page
 // overlay (that overlay was a real source of bugs — CSS/z-index/DOM-timing
 // interference from the host page — that a page-native popup can't have).
-function main() {
+async function main() {
   if (!matchHost(location.href)) return;
+
+  // The vettingEnabled toggle's actual enforcement point: when off, this
+  // is the only work the content script does — no DOM read, no message.
+  const settings = await getSettings();
+  if (!settings.vettingEnabled) return;
 
   const job = detectJob(document);
   if (!job) return;
@@ -18,4 +24,4 @@ function main() {
   } satisfies BackgroundMessage);
 }
 
-main();
+void main();

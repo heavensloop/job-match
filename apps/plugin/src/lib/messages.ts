@@ -8,4 +8,5 @@ import type { DetectedJob } from "./host-registry";
 export type BackgroundMessage =
   | { type: "sync-now" }
   | { type: "job-detected"; job: DetectedJob & { jobUrl: string } }
-  | { type: "pat-detected"; pat: string };
+  | { type: "pat-detected"; pat: string }
+  | { type: "vetting-toggled"; enabled: boolean };
