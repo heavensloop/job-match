@@ -14,6 +14,7 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+const vettingToggle = el<HTMLInputElement>("vetting-toggle");
 const jobInfoEl = el<HTMLElement>("job-info");
 const accountStatusEl = el<HTMLDivElement>("account-status");
 const loginButton = el<HTMLButtonElement>("login-button");
@@ -38,10 +39,16 @@ function textEl(tag: string, text: string, className?: string): HTMLElement {
 // read — untrusted input. Built via textContent, never innerHTML, so
 // nothing in a crafted job posting can inject markup into the popup.
 async function renderJobInfo() {
+  jobInfoEl.replaceChildren();
+
+  const settings = await getSettings();
+  if (!settings.vettingEnabled) {
+    jobInfoEl.append(textEl("p", "Page scanning is off."));
+    return;
+  }
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const state = tab?.id === undefined ? null : await getTabState(tab.id);
-
-  jobInfoEl.replaceChildren();
 
   if (!state) {
     jobInfoEl.append(textEl("p", "No job page detected on this tab."));
@@ -135,12 +142,25 @@ async function renderStatus() {
 
 async function loadForm() {
   const settings = await getSettings();
+  vettingToggle.checked = settings.vettingEnabled;
   llmProviderSelect.value = settings.llmProvider ?? "claude";
   llmApiKeyInput.value = settings.llmApiKey ?? "";
   renderAccount(settings);
   await renderCriteriaOptions(settings.activeCriteriaId);
   await renderStatus();
 }
+
+vettingToggle.addEventListener("change", () => {
+  void (async () => {
+    const settings = await setSettings({
+      vettingEnabled: vettingToggle.checked,
+    });
+    chrome.runtime.sendMessage({
+      type: "vetting-toggled",
+      enabled: settings.vettingEnabled,
+    });
+  })();
+});
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -203,6 +223,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
   if (areaName === "local" && "settings" in changes) {
     void (async () => renderAccount(await getSettings()))();
+    void renderJobInfo();
   }
   if (areaName === "session") {
     void renderJobInfo();

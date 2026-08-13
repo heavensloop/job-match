@@ -13,7 +13,50 @@
       }
       h1 {
         font-size: 15px;
-        margin: 0 0 12px;
+        margin: 0;
+      }
+      .header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .toggle {
+        position: relative;
+        display: inline-block;
+        width: 34px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        inset: 0;
+        background: #ccc;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .toggle-slider::before {
+        content: "";
+        position: absolute;
+        height: 16px;
+        width: 16px;
+        left: 2px;
+        top: 2px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.15s;
+      }
+      .toggle input:checked + .toggle-slider {
+        background: #2563eb;
+      }
+      .toggle input:checked + .toggle-slider::before {
+        transform: translateX(14px);
       }
       section {
         margin-bottom: 12px;
@@ -85,7 +128,13 @@
     </style>
   </head>
   <body>
-    <h1>JobMatch Copilot</h1>
+    <div class="header-row">
+      <h1>JobMatch Copilot</h1>
+      <label class="toggle" title="Enable page scanning">
+        <input type="checkbox" id="vetting-toggle" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
 
     <section id="job-info">
       <p>No job page detected on this tab.</p>

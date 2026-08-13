@@ -8,4 +8,12 @@ import type { DetectedJob } from "./host-registry";
 export type BackgroundMessage =
   | { type: "sync-now" }
   | { type: "job-detected"; job: DetectedJob & { jobUrl: string } }
-  | { type: "pat-detected"; pat: string };
+  | { type: "pat-detected"; pat: string }
+  | { type: "vetting-toggled"; enabled: boolean };
+
+// The reverse direction: background asking a specific tab's content
+// script to (re-)scan, e.g. right after vetting is switched back on for a
+// job page that's already open (see rescanActiveTabIfNeeded in
+// background.ts) — sent via chrome.tabs.sendMessage(tabId, ...), not the
+// broadcast chrome.runtime.sendMessage used for BackgroundMessage.
+export type ContentMessage = { type: "rescan" };

@@ -1,9 +1,10 @@
 import { runSync } from "./lib/sync";
 import { checkSeen, vetJob } from "./lib/vet-client";
-import { clearTabState, setTabState } from "./lib/tab-state";
-import { setActionIcon } from "./lib/action-icon";
-import { setSettings } from "./lib/storage";
-import type { BackgroundMessage } from "./lib/messages";
+import { matchHost } from "./lib/host-registry";
+import { clearTabState, getTabState, setTabState } from "./lib/tab-state";
+import { setActionIcon, setToggleIcon } from "./lib/action-icon";
+import { getSettings, setSettings } from "./lib/storage";
+import type { BackgroundMessage, ContentMessage } from "./lib/messages";
 
 const SYNC_ALARM = "jobmatch-sync";
 const SYNC_INTERVAL_MINUTES = 15;
@@ -15,9 +16,22 @@ const SYNC_INTERVAL_MINUTES = 15;
 const LOG = "[jobmatch:background]";
 console.log(LOG, "service worker started");
 
+// No manifest default_icon is declared (see lib/action-icon.ts), so the
+// toolbar icon only ever reflects reality once this has run at least
+// once — on install and on every browser/service-worker restart.
+async function applyStoredToggleIcon() {
+  const settings = await getSettings();
+  await setToggleIcon(settings.vettingEnabled);
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_INTERVAL_MINUTES });
   void runSync();
+  void applyStoredToggleIcon();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void applyStoredToggleIcon();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -49,6 +63,29 @@ async function handleJobDetected(
   );
 }
 
+// Turning vetting back on should behave "as if the page just loaded" for
+// whatever job page is currently open, rather than waiting for the next
+// navigation — but only if it hasn't already been scanned (or isn't
+// mid-scan): if tab-state already exists, the popup is already showing
+// that result as-is, and re-scanning would just waste a vetJob() call.
+async function rescanActiveTabIfNeeded() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined || !tab.url || !matchHost(tab.url)) return;
+
+  const existing = await getTabState(tab.id);
+  if (existing) return;
+
+  chrome.tabs
+    .sendMessage(tab.id, {
+      type: "rescan",
+    } satisfies ContentMessage)
+    .catch(() => {
+      // Content script may not be ready yet, or the tab navigated away
+      // between the query above and this call — safe to ignore, the next
+      // real navigation scans normally regardless.
+    });
+}
+
 // The content script has no direct API access (no PAT/LLM key in the page
 // context) — it messages the background service worker, which owns the
 // PAT/key and does the actual fetch.
@@ -67,6 +104,11 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender) => {
   if (message?.type === "job-detected") {
     const tabId = sender.tab?.id;
     if (tabId !== undefined) void handleJobDetected(tabId, message.job);
+    return;
+  }
+  if (message?.type === "vetting-toggled") {
+    void setToggleIcon(message.enabled);
+    if (message.enabled) void rescanActiveTabIfNeeded();
     return;
   }
   if (message?.type === "pat-detected") {

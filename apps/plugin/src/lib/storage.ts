@@ -8,6 +8,7 @@ export interface PluginSettings {
   llmProvider: LlmProviderId | null;
   llmApiKey: string | null;
   activeCriteriaId: string | null;
+  vettingEnabled: boolean;
 }
 
 export interface SyncState {
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   llmProvider: null,
   llmApiKey: null,
   activeCriteriaId: null,
+  vettingEnabled: true,
 };
 
 const DEFAULT_SYNC_STATE: SyncState = {

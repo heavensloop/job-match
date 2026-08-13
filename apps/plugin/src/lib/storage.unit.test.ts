@@ -23,6 +23,7 @@ describe("settings", () => {
       llmProvider: null,
       llmApiKey: null,
       activeCriteriaId: null,
+      vettingEnabled: true,
     });
   });
 

@@ -50,6 +50,7 @@ export function installMockChrome() {
     },
     runtime: {
       onInstalled: { addListener: vi.fn() },
+      onStartup: { addListener: vi.fn() },
       onMessage: { addListener: vi.fn() },
       sendMessage: vi.fn(),
     },
@@ -60,6 +61,7 @@ export function installMockChrome() {
     action: {
       setBadgeText: vi.fn(),
       setBadgeBackgroundColor: vi.fn(),
+      setIcon: vi.fn(),
     },
     tabs: {
       onRemoved: { addListener: vi.fn() },
