@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "JobMatch Copilot",
+  "version": "0.1.0",
+  "description": "Scores job postings against your profile and autofills applications.",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["http://localhost:3000/*", "http://localhost:3100/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "JobMatch Copilot"
+  }
+}

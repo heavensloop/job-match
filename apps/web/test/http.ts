@@ -16,3 +16,12 @@ export function jsonRequest(
 export function bearer(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}` };
 }
+
+export function llmHeaders(
+  overrides: { provider?: string; apiKey?: string } = {},
+): Record<string, string> {
+  return {
+    "x-llm-provider": overrides.provider ?? "claude",
+    "x-llm-api-key": overrides.apiKey ?? "sk-test-key",
+  };
+}

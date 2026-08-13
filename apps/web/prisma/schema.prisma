@@ -136,14 +136,16 @@ model JobBoardSource {
   @@map("job_board_sources")
 }
 
-// Crawler's dedup index only. No vetting data (decision #21) — no shared
-// Zod schema, this table is internal to the Web App.
+// Dedup index for every job the user has encountered — crawled (decision
+// #21: no vetting data written at crawl time) or viewed live in the Plugin.
+// sourceId is null for a live-viewed job with no matching job_board_source;
+// non-null once the crawler (or a later view) links it to one.
 model JobSeen {
-  id       String         @id @default(uuid())
-  userId   String         @map("user_id")
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sourceId String         @map("source_id")
-  source   JobBoardSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  id       String          @id @default(uuid())
+  userId   String          @map("user_id")
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceId String?         @map("source_id")
+  source   JobBoardSource? @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   url         String
   title       String
@@ -175,6 +177,9 @@ model ApplicationDraft {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // One draft per (job, criteria set) — the vetting endpoint upserts on
+  // this to cache by (url, profileVersion, criteriaId), §5.9.
+  @@unique([jobId, criteriaId])
   @@map("application_drafts")
 }
 

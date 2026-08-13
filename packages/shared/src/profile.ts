@@ -5,7 +5,8 @@ export const WorkHistoryEntrySchema = z.object({
   company: z.string(),
   startDate: z.string(), // "YYYY-MM"
   endDate: z.string().nullable(), // null = current role
-  description: z.string().optional(),
+  tools: z.array(z.string()).default([]), // per-role tool/skill chips
+  bullets: z.array(z.string()).default([]), // one entry per bullet point
 });
 export type WorkHistoryEntry = z.infer<typeof WorkHistoryEntrySchema>;
 

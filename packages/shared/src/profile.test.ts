@@ -35,7 +35,11 @@ describe("ProfileSchema", () => {
           company: "Analytical Engine Co.",
           startDate: "1843-01",
           endDate: null,
-          description: "Wrote the first algorithm.",
+          tools: ["Analytical Engine", "Punch Cards"],
+          bullets: [
+            "Wrote the first algorithm intended for machine execution.",
+            "Designed a loom-based instruction set.",
+          ],
         },
       ],
       parsedEducation: [
@@ -46,7 +50,28 @@ describe("ProfileSchema", () => {
       autofillAliases: { legalName: "Augusta Ada King" },
     });
     expect(result.parsedWorkHistory[0].endDate).toBeNull();
+    expect(result.parsedWorkHistory[0].tools).toEqual([
+      "Analytical Engine",
+      "Punch Cards",
+    ]);
+    expect(result.parsedWorkHistory[0].bullets).toHaveLength(2);
     expect(result.yearsOfExperience).toBe(10);
+  });
+
+  it("defaults a work history entry's tools/bullets to empty arrays", () => {
+    const result = ProfileSchema.parse({
+      ...validProfile,
+      parsedWorkHistory: [
+        {
+          title: "Mathematician",
+          company: "Analytical Engine Co.",
+          startDate: "1843-01",
+          endDate: null,
+        },
+      ],
+    });
+    expect(result.parsedWorkHistory[0].tools).toEqual([]);
+    expect(result.parsedWorkHistory[0].bullets).toEqual([]);
   });
 
   it("rejects an invalid email", () => {
