@@ -37,6 +37,26 @@ export function detectJob(doc: Document): DetectedJob | null {
   );
 }
 
+// Manual trigger only (the "Vet Page" button) — unlike detectJob(), which
+// only runs automatically on an allow-listed host and requires an "Apply"
+// CTA for its heading fallback, this is invoked by the user explicitly
+// asserting "this is a job page," so it skips both gates and takes
+// whatever title/body text the page has as a last resort.
+export function detectJobLenient(doc: Document): DetectedJob | null {
+  return detectJob(doc) ?? detectFromAnyPage(doc);
+}
+
+function detectFromAnyPage(doc: Document): DetectedJob | null {
+  const title =
+    doc.title.trim() || doc.querySelector("h1")?.textContent?.trim() || "";
+  if (!title) return null;
+
+  const descriptionText = extractBodyText(doc);
+  if (!descriptionText) return null;
+
+  return { title, company: metaContent(doc, "og:site_name"), descriptionText };
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")

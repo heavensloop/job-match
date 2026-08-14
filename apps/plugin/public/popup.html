@@ -15,6 +15,11 @@
         font-size: 15px;
         margin: 0 0 12px;
       }
+      #vet-page-button {
+        width: 100%;
+        padding: 6px;
+        margin-bottom: 12px;
+      }
       section {
         margin-bottom: 12px;
         padding-bottom: 12px;
@@ -87,6 +92,15 @@
   <body>
     <h1>JobMatch Copilot</h1>
 
+    <label>
+      <span>Active search criteria</span>
+      <select id="activeCriteriaId">
+        <option value="">— none synced yet —</option>
+      </select>
+    </label>
+
+    <button type="button" id="vet-page-button">Vet this page</button>
+
     <section id="job-info">
       <p>No job page detected on this tab.</p>
     </section>
@@ -100,12 +114,6 @@
     <section id="settings-section">
       <button type="button" id="settings-button">Settings</button>
       <form id="settings-form" hidden>
-        <label>
-          <span>Active search criteria</span>
-          <select id="activeCriteriaId">
-            <option value="">— none synced yet —</option>
-          </select>
-        </label>
         <label>
           <span>LLM provider</span>
           <select id="llmProvider">

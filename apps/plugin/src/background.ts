@@ -5,6 +5,8 @@ import { setActionIcon } from "./lib/action-icon";
 import { setSettings } from "./lib/storage";
 import type { BackgroundMessage } from "./lib/messages";
 
+const MANUAL_VET_SCRIPT = "manual-vet.js";
+
 const SYNC_ALARM = "jobmatch-sync";
 const SYNC_INTERVAL_MINUTES = 15;
 
@@ -23,6 +25,54 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SYNC_ALARM) void runSync();
 });
+
+// Placeholder job + an error vetResult, reusing the exact same tab-state
+// shape/rendering path handleJobDetected's failures already use — so the
+// popup needs no separate error-display code for this case.
+async function writeManualVetError(
+  tabId: number,
+  title: string,
+  jobUrl: string,
+  reason: string,
+) {
+  await setTabState(tabId, {
+    job: {
+      title: title || "This page",
+      company: "",
+      descriptionText: "",
+      jobUrl,
+    },
+    status: "error",
+    vetResult: { ok: false, error: reason },
+  });
+  await setActionIcon(tabId, "error");
+}
+
+// Triggered by the popup's "Vet Page" button. Injects manual-vet.js into
+// whatever tab is active — activeTab permission covers this since it's a
+// direct result of the user clicking something in the extension UI — which
+// then reports back via the same "job-detected"/"manual-vet-failed"
+// messages content.ts and manual-vet.ts itself send.
+async function handleVetActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined) return;
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: [MANUAL_VET_SCRIPT],
+    });
+  } catch (err) {
+    await writeManualVetError(
+      tab.id,
+      tab.title ?? "",
+      tab.url ?? "",
+      err instanceof Error
+        ? `Can't read this page: ${err.message}`
+        : "Can't read this page.",
+    );
+  }
+}
 
 async function handleJobDetected(
   tabId: number,
@@ -75,16 +125,37 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender) => {
       `pat-detected: saving PAT (${message.pat.slice(0, 12)}…) to settings`,
     );
     setSettings({ pat: message.pat })
-      .then((settings) =>
+      .then((settings) => {
         console.log(
           LOG,
           "pat-detected: settings saved, pat is now",
           settings.pat ? "set" : "null",
-        ),
-      )
+        );
+        // Without this, a freshly-connected Plugin has no search criteria
+        // until the next 15-minute alarm or a manual "Sync now" — the
+        // active-criteria dropdown in the popup would just show "— none
+        // synced yet —" right after login.
+        return runSync();
+      })
       .catch((err: unknown) =>
-        console.error(LOG, "pat-detected: setSettings failed", err),
+        console.error(LOG, "pat-detected: setSettings/sync failed", err),
       );
+    return;
+  }
+  if (message?.type === "vet-active-tab") {
+    void handleVetActiveTab();
+    return;
+  }
+  if (message?.type === "manual-vet-failed") {
+    const tab = sender.tab;
+    if (tab?.id !== undefined) {
+      void writeManualVetError(
+        tab.id,
+        tab.title ?? "",
+        tab.url ?? "",
+        message.reason,
+      );
+    }
     return;
   }
 });

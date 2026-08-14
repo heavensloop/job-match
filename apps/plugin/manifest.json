@@ -3,7 +3,7 @@
   "name": "JobMatch Copilot",
   "version": "0.1.0",
   "description": "Scores job postings against your profile and autofills applications.",
-  "permissions": ["storage", "alarms"],
+  "permissions": ["storage", "alarms", "scripting", "activeTab"],
   "host_permissions": ["__WEB_APP_URL__/*"],
   "background": {
     "service_worker": "background.js"

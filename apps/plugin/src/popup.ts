@@ -14,6 +14,8 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+const activeCriteriaSelect = el<HTMLSelectElement>("activeCriteriaId");
+const vetPageButton = el<HTMLButtonElement>("vet-page-button");
 const jobInfoEl = el<HTMLElement>("job-info");
 const accountStatusEl = el<HTMLDivElement>("account-status");
 const loginButton = el<HTMLButtonElement>("login-button");
@@ -21,7 +23,6 @@ const logoutButton = el<HTMLButtonElement>("logout-button");
 const settingsButton = el<HTMLButtonElement>("settings-button");
 const settingsCloseButton = el<HTMLButtonElement>("settings-close");
 const form = el<HTMLFormElement>("settings-form");
-const activeCriteriaSelect = el<HTMLSelectElement>("activeCriteriaId");
 const llmProviderSelect = el<HTMLSelectElement>("llmProvider");
 const llmApiKeyInput = el<HTMLInputElement>("llmApiKey");
 const syncNowButton = el<HTMLButtonElement>("sync-now");
@@ -146,7 +147,6 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   void (async () => {
     await setSettings({
-      activeCriteriaId: activeCriteriaSelect.value || null,
       llmProvider: (llmProviderSelect.value as LlmProviderId) || null,
       llmApiKey: llmApiKeyInput.value.trim() || null,
     });
@@ -154,6 +154,24 @@ form.addEventListener("submit", (event) => {
     statusEl.classList.remove("error");
     statusEl.textContent = "Saved, syncing...";
   })();
+});
+
+// Now lives outside the Settings form (it's front-and-center above "Vet
+// this page," not tucked away) — saves itself on change instead of
+// waiting for the form's Save button.
+activeCriteriaSelect.addEventListener("change", () => {
+  void setSettings({ activeCriteriaId: activeCriteriaSelect.value || null });
+});
+
+// Reads the DOM of whatever tab is currently active — not gated to the
+// LinkedIn/Greenhouse hosts content.ts auto-runs on — and vets it against
+// the active search criteria. background.ts does the actual work; the
+// result arrives back through the same tab-state listener that already
+// renders automatic detections, so no extra rendering logic is needed
+// here beyond this optimistic "in progress" message.
+vetPageButton.addEventListener("click", () => {
+  jobInfoEl.replaceChildren(textEl("p", "Vetting this page…"));
+  chrome.runtime.sendMessage({ type: "vet-active-tab" });
 });
 
 syncNowButton.addEventListener("click", () => {

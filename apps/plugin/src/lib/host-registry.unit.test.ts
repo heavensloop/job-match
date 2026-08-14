@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { detectJob, matchHost } from "./host-registry";
+import { detectJob, detectJobLenient, matchHost } from "./host-registry";
 
 function docFromHtml(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
@@ -136,5 +136,54 @@ describe("detectJob", () => {
   it("returns null when nothing on the page looks like a job posting", () => {
     const doc = docFromHtml(`<html><body><p>Nothing here.</p></body></html>`);
     expect(detectJob(doc)).toBeNull();
+  });
+});
+
+describe("detectJobLenient", () => {
+  it("still prefers structured data when present", () => {
+    const doc = docFromHtml(`
+      <html><head>
+        <meta property="og:title" content="Staff Engineer" />
+        <meta property="og:site_name" content="Acme Corp" />
+        <meta property="og:description" content="Build things." />
+      </head><body></body></html>
+    `);
+
+    expect(detectJobLenient(doc)).toEqual({
+      title: "Staff Engineer",
+      company: "Acme Corp",
+      descriptionText: "Build things.",
+    });
+  });
+
+  it("accepts a heading with no Apply CTA, unlike detectJob", () => {
+    const doc = docFromHtml(`
+      <html><body><h1>Company blog post</h1><main>Some text.</main></body></html>
+    `);
+
+    expect(detectJob(doc)).toBeNull();
+    expect(detectJobLenient(doc)).toEqual({
+      title: "Company blog post",
+      company: "",
+      descriptionText: "Some text.",
+    });
+  });
+
+  it("falls back to document.title when there's no h1 either", () => {
+    const doc = docFromHtml(`
+      <html><head><title>Careers at Acme</title></head>
+      <body><main>We're hiring across the board.</main></body></html>
+    `);
+
+    expect(detectJobLenient(doc)).toEqual({
+      title: "Careers at Acme",
+      company: "",
+      descriptionText: "We're hiring across the board.",
+    });
+  });
+
+  it("returns null when the page has no usable title or text at all", () => {
+    const doc = docFromHtml(`<html><body></body></html>`);
+    expect(detectJobLenient(doc)).toBeNull();
   });
 });

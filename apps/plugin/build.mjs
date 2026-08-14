@@ -21,6 +21,7 @@ const options = {
     popup: "src/popup.ts",
     content: "src/content.ts",
     "connect-bridge": "src/connect-bridge.ts",
+    "manual-vet": "src/manual-vet.ts",
   },
   bundle: true,
   outdir,

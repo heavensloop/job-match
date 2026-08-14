@@ -66,6 +66,9 @@ export function installMockChrome() {
       onUpdated: { addListener: vi.fn() },
       query: vi.fn(),
     },
+    scripting: {
+      executeScript: vi.fn(),
+    },
   };
 
   vi.stubGlobal("chrome", mockChrome);
