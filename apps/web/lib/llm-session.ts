@@ -26,6 +26,10 @@ export function setSessionLlmConfig(config: SessionLlmConfig): void {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(config));
 }
 
+export function clearSessionLlmConfig(): void {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
 export function sessionLlmHeaders(
   config: SessionLlmConfig,
 ): Record<string, string> {

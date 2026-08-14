@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
+  clearSessionLlmConfig,
   getSessionLlmConfig,
   sessionLlmHeaders,
   setSessionLlmConfig,
@@ -53,9 +54,19 @@ export function ImportResumeButton() {
     });
     if (!parseRes.ok) {
       const body = await parseRes.json().catch(() => null);
-      setError(
-        body?.error ?? `Couldn't parse that resume: HTTP ${parseRes.status}`,
-      );
+      const message =
+        body?.error ?? `Couldn't parse that resume: HTTP ${parseRes.status}`;
+      if (body?.details?.code === "llm_auth_failed") {
+        // The stored key was rejected by the provider — it's no good for
+        // next time either, so drop it and let the user fix it instead of
+        // dead-ending in the plain "Import from resume" button state.
+        clearSessionLlmConfig();
+        setApiKey("");
+        setError(message);
+        setStatus("needs-key");
+        return;
+      }
+      setError(message);
       setStatus("idle");
       return;
     }
@@ -70,13 +81,16 @@ export function ImportResumeButton() {
     event.target.value = "";
     if (!file) return;
 
+    // Kept regardless of path so a later auth-failure retry (which reopens
+    // the key form from inside importResume, not from here) has the file.
+    pendingFileRef.current = file;
+
     const existingConfig = getSessionLlmConfig();
     if (existingConfig) {
       void importResume(file, existingConfig);
       return;
     }
 
-    pendingFileRef.current = file;
     setStatus("needs-key");
   }
 
@@ -95,39 +109,55 @@ export function ImportResumeButton() {
 
   if (status === "needs-key") {
     return (
-      <form
-        onSubmit={handleKeySubmit}
-        style={{
-          display: "inline-flex",
-          gap: 6,
-          alignItems: "center",
-          border: "1px solid #ddd",
-          borderRadius: 4,
-          padding: 6,
-        }}
-      >
-        <span style={{ fontSize: 12, color: "#444" }}>
-          LLM key to parse it:
-        </span>
-        <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-          <option value="claude">Claude</option>
-          <option value="openai">OpenAI</option>
-          <option value="free">Free</option>
-        </select>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="API key"
-          required
-          autoComplete="off"
-          style={{ padding: 4 }}
-        />
-        <button type="submit">Continue</button>
-        <button type="button" onClick={() => setStatus("idle")}>
-          Cancel
-        </button>
-      </form>
+      <div>
+        <form
+          onSubmit={handleKeySubmit}
+          style={{
+            display: "inline-flex",
+            gap: 6,
+            alignItems: "center",
+            border: "1px solid #ddd",
+            borderRadius: 4,
+            padding: 6,
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#444" }}>
+            LLM key to parse it:
+          </span>
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+          >
+            <option value="claude">Claude</option>
+            <option value="openai">OpenAI</option>
+            <option value="free">Free</option>
+          </select>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="API key"
+            required
+            autoComplete="off"
+            style={{ padding: 4 }}
+          />
+          <button type="submit">Continue</button>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setStatus("idle");
+            }}
+          >
+            Cancel
+          </button>
+        </form>
+        {error && (
+          <p style={{ color: "#b00020", fontSize: 12, margin: "4px 0 0" }}>
+            {error}
+          </p>
+        )}
+      </div>
     );
   }
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { completeOpenAiCompatible } from "./openai-compatible";
-import { LlmProviderError } from "../provider";
+import { LlmAuthError, LlmProviderError } from "../provider";
 
 const fetchMock = vi.fn();
 
@@ -51,6 +51,42 @@ describe("completeOpenAiCompatible", () => {
 
     await expect(completeOpenAiCompatible(baseParams)).rejects.toThrow(
       /Example API error \(429\)/,
+    );
+  });
+
+  it("throws LlmAuthError with just the provider's message on a 401", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            message: "Incorrect API key provided: gsk_***.",
+            type: "invalid_request_error",
+            param: null,
+            code: "invalid_api_key",
+          },
+        }),
+        { status: 401 },
+      ),
+    );
+
+    const promise = completeOpenAiCompatible(baseParams);
+    await expect(promise).rejects.toThrow(LlmAuthError);
+    await expect(promise).rejects.toThrow(
+      "Incorrect API key provided: gsk_***.",
+    );
+    // The raw JSON wrapper (type/param/code, braces) must not leak through.
+    await expect(promise).rejects.not.toThrow(/"type"|"param"|\{/);
+  });
+
+  it("throws LlmAuthError on a 403 too", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: "forbidden" } }), {
+        status: 403,
+      }),
+    );
+
+    await expect(completeOpenAiCompatible(baseParams)).rejects.toThrow(
+      LlmAuthError,
     );
   });
 

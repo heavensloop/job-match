@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { LlmProviderError } from "@/lib/llm/provider";
+import { LlmAuthError, LlmProviderError } from "@/lib/llm/provider";
 
 export class NotFoundError extends Error {}
 export class BadRequestError extends Error {}
@@ -29,6 +29,13 @@ export function handleApiError(error: unknown): NextResponse {
   }
   if (error instanceof NotFoundError) {
     return jsonError(404, error.message || "Not found");
+  }
+  if (error instanceof LlmAuthError) {
+    // A machine-readable `code` (rather than relying on the 401 status
+    // alone, which session-auth failures also use) lets the client tell
+    // "your LLM key was rejected" apart from "your Web App session
+    // expired" and react differently — e.g. re-prompt for the key.
+    return jsonError(401, error.message, { code: "llm_auth_failed" });
   }
   if (error instanceof LlmProviderError) {
     // The LLM (or our own parsing of its response) is what failed here,

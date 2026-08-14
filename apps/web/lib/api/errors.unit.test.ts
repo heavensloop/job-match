@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { LlmAuthError, LlmProviderError } from "@/lib/llm/provider";
 import {
   NotFoundError,
   handleApiError,
@@ -48,6 +49,23 @@ describe("handleApiError", () => {
     const res = handleApiError(new NotFoundError("Widget not found"));
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Widget not found" });
+  });
+
+  it("maps an LlmProviderError to 502 with its (already-sanitized) message", async () => {
+    const res = handleApiError(new LlmProviderError("Groq API error (429)"));
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "Groq API error (429)",
+    });
+  });
+
+  it("maps an LlmAuthError to 401 with a machine-readable code, distinct from a plain session-auth 401", async () => {
+    const res = handleApiError(new LlmAuthError("Incorrect API key provided"));
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({
+      error: "Incorrect API key provided",
+      details: { code: "llm_auth_failed" },
+    });
   });
 
   it("maps an unknown error to 500 without leaking details", async () => {

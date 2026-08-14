@@ -14,3 +14,8 @@ export interface LlmProvider {
 }
 
 export class LlmProviderError extends Error {}
+
+// Specifically an upstream 401/403 (missing/invalid key) rather than any
+// other provider failure — callers use this to offer re-entering the key
+// instead of just surfacing a generic error.
+export class LlmAuthError extends LlmProviderError {}

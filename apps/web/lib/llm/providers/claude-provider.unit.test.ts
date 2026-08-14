@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaudeProvider } from "./claude-provider";
-import { LlmProviderError } from "../provider";
+import { LlmAuthError, LlmProviderError } from "../provider";
 
 const fetchMock = vi.fn();
 
@@ -37,12 +37,30 @@ describe("ClaudeProvider", () => {
   });
 
   it("throws LlmProviderError on a non-ok response", async () => {
-    fetchMock.mockResolvedValue(new Response("bad key", { status: 401 }));
+    fetchMock.mockResolvedValue(new Response("bad key", { status: 500 }));
 
     const provider = new ClaudeProvider("sk-bad");
     await expect(
       provider.complete({ systemPrompt: "s", userPrompt: "u" }),
     ).rejects.toThrow(LlmProviderError);
+  });
+
+  it("throws LlmAuthError with just the provider's message on a 401", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          type: "error",
+          error: { type: "authentication_error", message: "invalid x-api-key" },
+        }),
+        { status: 401 },
+      ),
+    );
+
+    const provider = new ClaudeProvider("sk-bad");
+    const promise = provider.complete({ systemPrompt: "s", userPrompt: "u" });
+    await expect(promise).rejects.toThrow(LlmAuthError);
+    await expect(promise).rejects.toThrow("invalid x-api-key");
+    await expect(promise).rejects.not.toThrow(/"type"|\{/);
   });
 
   it("throws LlmProviderError when there's no text content", async () => {
