@@ -13,24 +13,24 @@ describe("buildResumeParsePrompt", () => {
   it("asks for JSON-only output describing the expected shape", () => {
     const { systemPrompt } = buildResumeParsePrompt("anything");
     expect(systemPrompt).toContain("ONLY a single JSON object");
-    expect(systemPrompt).toContain("parsedWorkHistory");
+    expect(systemPrompt).toContain("experiences");
   });
 });
 
 describe("ResumeParseResultSchema", () => {
   it("fills in defaults for an empty result", () => {
     const result = ResumeParseResultSchema.parse({});
-    expect(result.parsedSkills).toEqual([]);
-    expect(result.parsedWorkHistory).toEqual([]);
-    expect(result.parsedEducation).toEqual([]);
-    expect(result.parsedCertifications).toEqual([]);
+    expect(result.skills).toEqual([]);
+    expect(result.experiences).toEqual([]);
+    expect(result.education).toEqual([]);
+    expect(result.certifications).toEqual([]);
   });
 
   it("accepts a fully populated result", () => {
     const result = ResumeParseResultSchema.parse({
       legalName: "Ada Lovelace",
       email: "ada@example.com",
-      parsedSkills: ["Math"],
+      skills: ["Math"],
       yearsOfExperience: 12,
     });
     expect(result.legalName).toBe("Ada Lovelace");

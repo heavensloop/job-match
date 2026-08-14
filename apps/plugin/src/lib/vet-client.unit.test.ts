@@ -27,6 +27,7 @@ const validDraft = {
   userId: "1a2b3c4d-5e6f-4789-abcd-ef0123456789",
   jobId: "2a2b3c4d-5e6f-4789-abcd-ef0123456789",
   criteriaId: "3a2b3c4d-5e6f-4789-abcd-ef0123456789",
+  jobProfileId: "4a2b3c4d-5e6f-4789-abcd-ef0123456789",
   vettingSnapshot: {
     score: 82,
     recommendation: "strong_match",

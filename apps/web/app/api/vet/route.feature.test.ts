@@ -9,7 +9,10 @@ import {
   mockLlmModule,
   mockLlmTextResponse,
 } from "@/test/mock-llm";
-import { validSearchCriteriaInput } from "@/test/fixtures";
+import {
+  validJobProfileInput,
+  validSearchCriteriaInput,
+} from "@/test/fixtures";
 
 vi.mock("@/auth", () => mockAuthModule());
 vi.mock("@/lib/llm/get-provider", () => mockLlmModule());
@@ -35,19 +38,28 @@ function vetBody(overrides: Record<string, unknown> = {}) {
 }
 
 let userId: string;
+let personId: string;
 let criteriaId: string;
+let jobProfileId: string;
 
 beforeEach(async () => {
   userId = (await createTestUser()).id;
   mockSessionUser(userId);
   completeMock.mockReset();
 
-  await db.profile.create({
-    data: { userId, legalName: "Ada Lovelace", email: "ada@example.com" },
-  });
+  personId = (
+    await db.person.create({
+      data: { userId, legalName: "Ada Lovelace", email: "ada@example.com" },
+    })
+  ).id;
   criteriaId = (
     await db.searchCriteria.create({
       data: { userId, ...validSearchCriteriaInput() },
+    })
+  ).id;
+  jobProfileId = (
+    await db.jobProfile.create({
+      data: { personId, ...validJobProfileInput({ isDefault: true }) },
     })
   ).id;
 });
@@ -76,8 +88,23 @@ describe("POST /api/vet", () => {
     expect(res.status).toBe(400);
   });
 
-  it("404s when the user has no profile", async () => {
-    await db.profile.delete({ where: { userId } });
+  it("404s when the user has no person record", async () => {
+    await db.person.delete({ where: { userId } });
+    const res = await POST(
+      jsonRequest(URL, {
+        method: "POST",
+        headers: llmHeaders(),
+        body: vetBody({ criteriaId }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("404s when the person has no default job profile and none was specified", async () => {
+    await db.jobProfile.update({
+      where: { id: jobProfileId },
+      data: { isDefault: false },
+    });
     const res = await POST(
       jsonRequest(URL, {
         method: "POST",
@@ -122,12 +149,32 @@ describe("POST /api/vet", () => {
     const body = await res.json();
     expect(body.vettingSnapshot.score).toBe(82);
     expect(body.vettingSnapshot.recommendation).toBe("strong_match");
+    expect(body.jobProfileId).toBe(jobProfileId);
     expect(completeMock).toHaveBeenCalledTimes(1);
 
     const jobSeen = await db.jobSeen.findUniqueOrThrow({
       where: { userId_url: { userId, url: vetBody().jobUrl } },
     });
     expect(jobSeen.sourceId).toBeNull();
+  });
+
+  it("vets against an explicitly specified jobProfileId", async () => {
+    const secondProfileId = (
+      await db.jobProfile.create({
+        data: { personId, ...validJobProfileInput({ jobTitle: "Second" }) },
+      })
+    ).id;
+    mockLlmJsonResponse(validVettingResult);
+
+    const res = await POST(
+      jsonRequest(URL, {
+        method: "POST",
+        headers: llmHeaders(),
+        body: vetBody({ criteriaId, jobProfileId: secondProfileId }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).jobProfileId).toBe(secondProfileId);
   });
 
   it("serves a cached draft without calling the LLM again", async () => {
@@ -152,7 +199,7 @@ describe("POST /api/vet", () => {
     expect(completeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("re-vets when the profile changed since the cached draft", async () => {
+  it("re-vets when the job profile changed since the cached draft", async () => {
     mockLlmJsonResponse(validVettingResult);
     await POST(
       jsonRequest(URL, {
@@ -164,9 +211,9 @@ describe("POST /api/vet", () => {
     expect(completeMock).toHaveBeenCalledTimes(1);
 
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await db.profile.update({
-      where: { userId },
-      data: { legalName: "Ada King" },
+    await db.jobProfile.update({
+      where: { id: jobProfileId },
+      data: { skills: ["New skill"] },
     });
 
     mockLlmJsonResponse({ ...validVettingResult, score: 55 });

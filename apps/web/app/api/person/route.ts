@@ -1,29 +1,30 @@
 import { NextResponse } from "next/server";
-import { ProfileSchema } from "@jobmatch/shared";
+import { PersonSchema } from "@jobmatch/shared";
 import { db } from "@/lib/db";
 import { getAuthContext, getSessionUserId } from "@/lib/auth/context";
 import { nullsToUndefined } from "@/lib/api/serialize";
 import { NotFoundError, handleApiError, unauthorized } from "@/lib/api/errors";
 
-// Client sends the full edited profile each time (the resume review/edit
-// form, §5.6) — PUT replaces the whole row rather than patching fields.
-const ProfileInput = ProfileSchema.omit({
+// Client sends the full edited person each time — PUT replaces the whole
+// row rather than patching fields, same as the old /api/profile route
+// this replaces.
+const PersonInput = PersonSchema.omit({
   id: true,
   userId: true,
   updatedAt: true,
 });
 
-// Readable by session (Web App) or PAT (Plugin autofill needs profile data
-// to map form fields, §5.3).
+// Readable by session (Web App) or PAT (Plugin autofill needs identity
+// data to map form fields, §5.3).
 export async function GET(request: Request) {
   try {
     const auth = await getAuthContext(request);
     if (!auth) return unauthorized();
 
-    const row = await db.profile.findUnique({ where: { userId: auth.userId } });
-    if (!row) throw new NotFoundError("Profile not found");
+    const row = await db.person.findUnique({ where: { userId: auth.userId } });
+    if (!row) throw new NotFoundError("Person not found");
 
-    return NextResponse.json(ProfileSchema.parse(nullsToUndefined(row)));
+    return NextResponse.json(PersonSchema.parse(nullsToUndefined(row)));
   } catch (error) {
     return handleApiError(error);
   }
@@ -35,15 +36,15 @@ export async function PUT(request: Request) {
     const userId = await getSessionUserId();
     if (!userId) return unauthorized();
 
-    const input = ProfileInput.parse(await request.json());
+    const input = PersonInput.parse(await request.json());
 
-    const row = await db.profile.upsert({
+    const row = await db.person.upsert({
       where: { userId },
       create: { userId, ...input },
       update: { ...input },
     });
 
-    return NextResponse.json(ProfileSchema.parse(nullsToUndefined(row)));
+    return NextResponse.json(PersonSchema.parse(nullsToUndefined(row)));
   } catch (error) {
     return handleApiError(error);
   }

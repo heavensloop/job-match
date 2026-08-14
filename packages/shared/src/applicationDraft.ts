@@ -23,6 +23,7 @@ export const ApplicationDraftSchema = z.object({
   userId: z.string().uuid(),
   jobId: z.string().uuid(), // references jobs_seen, not shared as its own schema
   criteriaId: z.string().uuid(), // which search profile it was scored against
+  jobProfileId: z.string().uuid(), // which JobProfile it was scored against
 
   vettingSnapshot: VettingResultSchema,
   autofillFieldMap: AutofillFieldMapSchema.default({}),

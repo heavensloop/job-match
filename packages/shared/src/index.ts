@@ -1,4 +1,5 @@
-export * from "./profile";
+export * from "./person";
+export * from "./jobProfile";
 export * from "./searchCriteria";
 export * from "./jobBoardSource";
 export * from "./vettingResult";

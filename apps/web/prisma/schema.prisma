@@ -48,7 +48,7 @@ model User {
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  profile              Profile?
+  person               Person?
   searchCriteria       SearchCriteria[]
   jobsSeen             JobSeen[]
   applicationDrafts    ApplicationDraft[]
@@ -57,8 +57,9 @@ model User {
   @@map("users")
 }
 
-// Mirrors packages/shared/src/profile.ts (ProfileSchema).
-model Profile {
+// Mirrors packages/shared/src/person.ts (PersonSchema) — the constant
+// identity shared across all of a user's JobProfiles.
+model Person {
   id     String @id @default(uuid())
   userId String @unique @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -67,26 +68,52 @@ model Profile {
   displayName String? @map("display_name")
   email       String
   phone       String?
-  location    String?
+  address     String?
+
+  jobProfiles JobProfile[]
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("people")
+}
+
+// Mirrors packages/shared/src/jobProfile.ts (JobProfileSchema) — one of a
+// person's many job-application profiles (1:many, unlike the constant
+// identity fields on Person above).
+model JobProfile {
+  id       String @id @default(uuid())
+  personId String @map("person_id")
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  // Doubles as the label a person uses to tell their profiles apart in a
+  // list, so it's unique per person (see @@unique below).
+  jobTitle  String  @map("job_title")
+  bio       String?
+  isDefault Boolean @default(false) @map("is_default")
+
+  // Structured data. Stored as JSON rather than normalized tables since
+  // JobProfileSchema in packages/shared is the single source of truth
+  // for its shape.
+  skills         Json   @default("[]")
+  socialLinks    Json   @default("{}") @map("social_links")
+  experiences    Json   @default("[]")
+  education      Json   @default("[]")
+  certifications Json   @default("[]")
+  yearsOfExperience Float? @map("years_of_experience")
 
   resumeBlobUrl String? @map("resume_blob_url")
   resumeText    String? @map("resume_text")
 
-  // Structured LLM parse of the resume / LinkedIn export. Stored as JSON
-  // rather than normalized tables since ProfileSchema in packages/shared
-  // is the single source of truth for its shape.
-  parsedSkills         Json   @default("[]") @map("parsed_skills")
-  parsedWorkHistory    Json   @default("[]") @map("parsed_work_history")
-  parsedEducation      Json   @default("[]") @map("parsed_education")
-  parsedCertifications Json   @default("[]") @map("parsed_certifications")
-  yearsOfExperience    Float? @map("years_of_experience")
-
   // Field key -> value an ATS form might expect (legal name vs. display name).
   autofillAliases Json @default("{}") @map("autofill_aliases")
 
+  createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("profiles")
+  applicationDrafts ApplicationDraft[]
+
+  @@unique([personId, jobTitle])
+  @@map("job_profiles")
 }
 
 // Mirrors packages/shared/src/searchCriteria.ts (SearchCriteriaSchema).
@@ -161,13 +188,15 @@ model JobSeen {
 // Mirrors packages/shared/src/applicationDraft.ts (ApplicationDraftSchema).
 // vettingSnapshot's shape is packages/shared/src/vettingResult.ts (VettingResultSchema).
 model ApplicationDraft {
-  id         String         @id @default(uuid())
-  userId     String         @map("user_id")
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId      String         @map("job_id")
-  job        JobSeen        @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  criteriaId String         @map("criteria_id")
-  criteria   SearchCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  id           String         @id @default(uuid())
+  userId       String         @map("user_id")
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId        String         @map("job_id")
+  job          JobSeen        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  criteriaId   String         @map("criteria_id")
+  criteria     SearchCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  jobProfileId String         @map("job_profile_id")
+  jobProfile   JobProfile     @relation(fields: [jobProfileId], references: [id], onDelete: Cascade)
 
   vettingSnapshot  Json                   @map("vetting_snapshot")
   autofillFieldMap Json                   @default("{}") @map("autofill_field_map")
@@ -177,9 +206,11 @@ model ApplicationDraft {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // One draft per (job, criteria set) — the vetting endpoint upserts on
-  // this to cache by (url, profileVersion, criteriaId), §5.9.
-  @@unique([jobId, criteriaId])
+  // One draft per (job, criteria set, job profile) — the vetting endpoint
+  // upserts on this to cache by (url, jobProfileVersion, criteriaId),
+  // §5.9. jobProfileId is part of the key because different profiles
+  // score differently against the same job.
+  @@unique([jobId, criteriaId, jobProfileId])
   @@map("application_drafts")
 }
 

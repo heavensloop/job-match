@@ -1,7 +1,8 @@
-import type { Profile, SearchCriteria } from "@jobmatch/shared";
+import type { JobProfile, Person, SearchCriteria } from "@jobmatch/shared";
 
 export interface VettingPromptInput {
-  profile: Profile;
+  person: Person;
+  jobProfile: JobProfile;
   criteria: SearchCriteria;
   jobTitle: string;
   company: string;
@@ -28,16 +29,23 @@ export function buildVettingPrompt(input: VettingPromptInput): {
   systemPrompt: string;
   userPrompt: string;
 } {
-  const { profile, criteria, jobTitle, company, jobDescriptionText } = input;
+  const {
+    person,
+    jobProfile,
+    criteria,
+    jobTitle,
+    company,
+    jobDescriptionText,
+  } = input;
 
   const userPrompt = `## Candidate profile
 
-Name: ${profile.legalName}
-Years of experience: ${profile.yearsOfExperience ?? "unspecified"}
-Skills: ${profile.parsedSkills.join(", ") || "none listed"}
+Name: ${person.legalName}
+Years of experience: ${jobProfile.yearsOfExperience ?? "unspecified"}
+Skills: ${jobProfile.skills.join(", ") || "none listed"}
 Work history:
 ${
-  profile.parsedWorkHistory
+  jobProfile.experiences
     .map((entry) => {
       const header = `- ${entry.title} at ${entry.company} (${entry.startDate} to ${entry.endDate ?? "present"})`;
       const tools = entry.tools.length ? ` — ${entry.tools.join(", ")}` : "";
@@ -48,10 +56,10 @@ ${
 }
 Education:
 ${
-  profile.parsedEducation
+  jobProfile.education
     .map(
       (entry) =>
-        `- ${entry.degree ?? "N/A"} ${entry.field ?? ""} — ${entry.institution}`,
+        `- ${entry.degree} ${entry.field ?? ""} — ${entry.institution}`,
     )
     .join("\n") || "none listed"
 }

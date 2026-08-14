@@ -62,7 +62,7 @@ describe("POST /api/profile/parse", () => {
   it("returns the structured parse from the LLM", async () => {
     mockLlmJsonResponse({
       legalName: "Ada Lovelace",
-      parsedSkills: ["Math", "Analytical Engines"],
+      skills: ["Math", "Analytical Engines"],
       yearsOfExperience: 12,
     });
 
@@ -76,7 +76,7 @@ describe("POST /api/profile/parse", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.legalName).toBe("Ada Lovelace");
-    expect(body.parsedSkills).toEqual(["Math", "Analytical Engines"]);
+    expect(body.skills).toEqual(["Math", "Analytical Engines"]);
     expect(body.yearsOfExperience).toBe(12);
     expect(completeMock).toHaveBeenCalledTimes(1);
   });
@@ -92,8 +92,8 @@ describe("POST /api/profile/parse", () => {
       }),
     );
     const body = await res.json();
-    expect(body.parsedSkills).toEqual([]);
-    expect(body.parsedWorkHistory).toEqual([]);
+    expect(body.skills).toEqual([]);
+    expect(body.experiences).toEqual([]);
   });
 
   it("502s when the LLM response isn't valid JSON", async () => {
