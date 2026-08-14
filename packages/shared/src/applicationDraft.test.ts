@@ -6,6 +6,7 @@ const valid = {
   userId: "1a2b3c4d-5e6f-4789-abcd-ef0123456789",
   jobId: "2b3c4d5e-6f70-4890-bcde-f01234567890",
   criteriaId: "3c4d5e6f-7081-4901-cdef-012345678901",
+  jobProfileId: "4d5e6f70-8192-4a12-def0-123456789012",
   vettingSnapshot: {
     score: 75,
     recommendation: "possible_match",

@@ -96,3 +96,9 @@ plugin-build:
 
 plugin-dev:
     npm run dev --workspace=apps/plugin
+
+plugin-typecheck:
+    npm run typecheck --workspace=apps/plugin
+
+plugin-test:
+    npm run test --workspace=apps/plugin

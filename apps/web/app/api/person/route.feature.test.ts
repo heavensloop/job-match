@@ -9,7 +9,7 @@ vi.mock("@/auth", () => mockAuthModule());
 
 const { GET, PUT } = await import("./route");
 
-const URL = "http://localhost/api/profile";
+const URL = "http://localhost/api/person";
 
 let userId: string;
 
@@ -21,14 +21,14 @@ afterEach(async () => {
   await deleteTestUser(userId);
 });
 
-describe("GET /api/profile", () => {
+describe("GET /api/person", () => {
   it("401s without a session or PAT", async () => {
     mockSessionUser(null);
     const res = await GET(jsonRequest(URL));
     expect(res.status).toBe(401);
   });
 
-  it("404s when the user has no profile yet", async () => {
+  it("404s when the user has no person record yet", async () => {
     mockSessionUser(userId);
     const res = await GET(jsonRequest(URL));
     expect(res.status).toBe(404);
@@ -36,7 +36,7 @@ describe("GET /api/profile", () => {
 
   it("200s via PAT auth (Plugin autofill path)", async () => {
     mockSessionUser(null);
-    await db.profile.create({
+    await db.person.create({
       data: { userId, legalName: "Ada Lovelace", email: "ada@example.com" },
     });
     const { token, tokenHash } = generatePersonalAccessToken();
@@ -51,7 +51,7 @@ describe("GET /api/profile", () => {
   });
 });
 
-describe("PUT /api/profile", () => {
+describe("PUT /api/person", () => {
   it("401s without a session", async () => {
     mockSessionUser(null);
     const res = await PUT(
@@ -63,7 +63,7 @@ describe("PUT /api/profile", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates the profile on first PUT and applies schema defaults", async () => {
+  it("creates the person on first PUT and applies schema defaults", async () => {
     mockSessionUser(userId);
     const res = await PUT(
       jsonRequest(URL, {
@@ -74,11 +74,9 @@ describe("PUT /api/profile", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.legalName).toBe("Ada Lovelace");
-    expect(body.parsedSkills).toEqual([]);
-    expect(body.autofillAliases).toEqual({});
   });
 
-  it("replaces the whole row on a second PUT", async () => {
+  it("updates only the fields sent on a subsequent PUT", async () => {
     mockSessionUser(userId);
     await PUT(
       jsonRequest(URL, {
@@ -86,7 +84,7 @@ describe("PUT /api/profile", () => {
         body: {
           legalName: "Ada Lovelace",
           email: "ada@example.com",
-          parsedSkills: ["Math"],
+          phone: "+1-555-0100",
         },
       }),
     );
@@ -99,8 +97,11 @@ describe("PUT /api/profile", () => {
     );
     const body = await res.json();
     expect(body.legalName).toBe("Ada King");
-    // Not sent this time — full-replace semantics reset it to the default.
-    expect(body.parsedSkills).toEqual([]);
+    // Omitted this time — Prisma's update() treats an absent/undefined
+    // key as "leave unchanged," not "clear it" (unlike the array fields
+    // on JobProfile, which have real Zod .default()s that always supply
+    // a concrete value to write).
+    expect(body.phone).toBe("+1-555-0100");
   });
 
   it("400s on an invalid body", async () => {

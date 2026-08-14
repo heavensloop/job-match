@@ -1,0 +1,24 @@
+{
+  "name": "@jobmatch/plugin",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run unit.test.ts"
+  },
+  "dependencies": {
+    "@jobmatch/shared": "*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.2.5",
+    "dotenv": "^16.6.1",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
+  }
+}

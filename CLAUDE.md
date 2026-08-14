@@ -16,7 +16,17 @@ the source of truth for scope and rationale. The notes below are a
 condensed pointer into it, not a replacement.
 
 ## Build and run commands
-Always use yarn (not npm) to run commands in the correct context.
+Always use npm (not yarn) to run commands in the correct context — this is
+an npm workspaces monorepo (`package-lock.json`, `npm run` throughout the
+`justfile`).
+
+## Git workflow
+
+Create new feature branches from `main`, not from another feature branch
+or from `dev` — `main` is the up-to-date integration branch new work
+should fork from.
+
+Always create a new branch for each feature or bugfix, and open a PR against `main` when ready for review. Use descriptive branch names (e.g., `feature/job-detection`, `bugfix/autofill-mapper`).
 
 ## What this is
 

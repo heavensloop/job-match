@@ -46,3 +46,17 @@ export function validJobBoardSourceInput(
     ...overrides,
   };
 }
+
+interface JobProfileInputFixture {
+  jobTitle: string;
+  isDefault?: boolean;
+}
+
+export function validJobProfileInput(
+  overrides: Partial<JobProfileInputFixture> = {},
+): JobProfileInputFixture {
+  return {
+    jobTitle: "Backend Engineering",
+    ...overrides,
+  };
+}

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>JobMatch Copilot</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        width: 320px;
+        margin: 0;
+        padding: 12px;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      section {
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #ddd;
+      }
+      section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+      #job-info p {
+        margin: 4px 0;
+      }
+      #job-info .job-title {
+        font-weight: 600;
+      }
+      #job-info .score {
+        font-size: 20px;
+        font-weight: bold;
+      }
+      #job-info .gap {
+        color: #444;
+      }
+      #job-info .seen {
+        color: #777;
+        font-size: 12px;
+      }
+      #job-info .error {
+        color: #b00020;
+      }
+      #account-status {
+        color: #444;
+        margin-bottom: 8px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+      }
+      label span {
+        display: block;
+        margin-bottom: 2px;
+        color: #444;
+      }
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 4px 6px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      button {
+        cursor: pointer;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      #status {
+        margin-top: 12px;
+        color: #444;
+      }
+      #status.error {
+        color: #b00020;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>JobMatch Copilot</h1>
+
+    <section id="job-info">
+      <p>No job page detected on this tab.</p>
+    </section>
+
+    <section id="account">
+      <div id="account-status"></div>
+      <button type="button" id="login-button">Login</button>
+      <button type="button" id="logout-button" hidden>Logout</button>
+    </section>
+
+    <section id="settings-section">
+      <button type="button" id="settings-button">Settings</button>
+      <form id="settings-form" hidden>
+        <label>
+          <span>Active search criteria</span>
+          <select id="activeCriteriaId">
+            <option value="">— none synced yet —</option>
+          </select>
+        </label>
+        <label>
+          <span>LLM provider</span>
+          <select id="llmProvider">
+            <option value="claude">Claude</option>
+            <option value="openai">OpenAI</option>
+            <option value="free">Free (open-weight, Groq)</option>
+          </select>
+        </label>
+        <label>
+          <span>LLM API key</span>
+          <input id="llmApiKey" type="password" autocomplete="off" />
+        </label>
+        <div class="actions">
+          <button type="submit">Save</button>
+          <button type="button" id="sync-now">Sync now</button>
+          <button type="button" id="settings-close">Close</button>
+        </div>
+      </form>
+      <div id="status"></div>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
