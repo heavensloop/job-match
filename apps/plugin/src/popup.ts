@@ -117,6 +117,16 @@ async function renderCriteriaOptions(selectedId: string | null) {
   if (selectedId && criteria.some((c) => c.id === selectedId)) {
     activeCriteriaSelect.value = selectedId;
   }
+
+  // The browser may land on an option we never explicitly selected — most
+  // commonly, there's only one to choose from, so it's just the default —
+  // without persisting that, no "change" event ever fires (nothing to
+  // change from) and vetJob() would see no active criteria at all despite
+  // the dropdown visibly showing one selected. Keep storage in sync with
+  // whatever ends up displayed, not just user-driven switches.
+  if (activeCriteriaSelect.value && activeCriteriaSelect.value !== selectedId) {
+    await setSettings({ activeCriteriaId: activeCriteriaSelect.value });
+  }
 }
 
 async function renderStatus() {

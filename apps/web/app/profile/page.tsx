@@ -24,6 +24,9 @@ export default async function ProfilePage() {
       <p style={{ marginTop: 24 }}>
         <Link href="/profile/job-profiles">Manage job profiles →</Link>
       </p>
+      <p style={{ marginTop: 8 }}>
+        <Link href="/search-criteria">Manage search criteria →</Link>
+      </p>
     </main>
   );
 }
