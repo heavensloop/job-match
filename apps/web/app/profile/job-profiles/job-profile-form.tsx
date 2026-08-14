@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { RESUME_IMPORT_KEY } from "./import-resume-button";
 
 const DEGREE_OPTIONS = [
   { value: "high_school", label: "High School" },
@@ -33,6 +34,8 @@ interface FormState {
   jobTitle: string;
   bio: string;
   skills: string[];
+  certifications: string[];
+  yearsOfExperience: string;
   linkedin: string;
   github: string;
   twitter: string;
@@ -44,6 +47,8 @@ const EMPTY_FORM: FormState = {
   jobTitle: "",
   bio: "",
   skills: [],
+  certifications: [],
+  yearsOfExperience: "",
   linkedin: "",
   github: "",
   twitter: "",
@@ -73,11 +78,90 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [skillInput, setSkillInput] = useState("");
-  const [loading, setLoading] = useState(Boolean(sourceId));
+  const [certInput, setCertInput] = useState("");
+  const isImport = searchParams.get("import") === "1";
+  const [loading, setLoading] = useState(Boolean(sourceId) || isImport);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contactNote, setContactNote] = useState<string | null>(null);
+
+  function mostRecentTitle(
+    experiences: { title: string; endDate: string | null }[],
+  ): string {
+    if (experiences.length === 0) return "";
+    // Sort descending by endDate, treating "still there" (null) as the most
+    // recent — YYYY-MM strings compare correctly lexicographically.
+    const [latest] = [...experiences].sort((a, b) =>
+      (b.endDate ?? "9999-99").localeCompare(a.endDate ?? "9999-99"),
+    );
+    return latest.title;
+  }
 
   useEffect(() => {
+    // One-shot handoff from ImportResumeButton — read-and-clear, not a
+    // fetch, but still deferred into a microtask (rather than calling
+    // setForm synchronously in the effect body) to avoid cascading
+    // synchronous renders, same as the fetch-based branch below.
+    if (isImport) {
+      void (async () => {
+        const raw = sessionStorage.getItem(RESUME_IMPORT_KEY);
+        sessionStorage.removeItem(RESUME_IMPORT_KEY);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let parsed: any = null;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+          // Malformed sessionStorage payload — fall through to a blank form.
+        }
+        if (parsed) {
+          setForm({
+            ...EMPTY_FORM,
+            jobTitle:
+              parsed.headline || mostRecentTitle(parsed.experiences ?? []),
+            bio: parsed.bio ?? "",
+            skills: parsed.skills ?? [],
+            certifications: parsed.certifications ?? [],
+            yearsOfExperience:
+              parsed.yearsOfExperience != null
+                ? String(parsed.yearsOfExperience)
+                : "",
+            experiences: (parsed.experiences ?? []).map(
+              (entry: (typeof parsed.experiences)[number]) => ({
+                title: entry.title,
+                company: entry.company,
+                startDate: entry.startDate,
+                endDate: entry.endDate,
+                tools: entry.tools.join(", "),
+                bullets: entry.bullets.join("\n"),
+              }),
+            ),
+            education: (parsed.education ?? []).map(
+              (entry: (typeof parsed.education)[number]) => ({
+                degree: entry.degree,
+                institution: entry.institution,
+                field: entry.field ?? "",
+                startDate: entry.startDate,
+                endDate: entry.endDate,
+                description: entry.description ?? "",
+              }),
+            ),
+          });
+          if (
+            parsed.legalName ||
+            parsed.email ||
+            parsed.phone ||
+            parsed.address
+          ) {
+            setContactNote(
+              "The resume also had contact details — update those on your details page if they've changed.",
+            );
+          }
+        }
+        setLoading(false);
+      })();
+      return;
+    }
+
     if (!sourceId) return;
     let cancelled = false;
 
@@ -96,6 +180,9 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
         jobTitle: jobProfileId ? body.jobTitle : `${body.jobTitle} (copy)`,
         bio: body.bio ?? "",
         skills: body.skills,
+        certifications: body.certifications ?? [],
+        yearsOfExperience:
+          body.yearsOfExperience != null ? String(body.yearsOfExperience) : "",
         linkedin: body.socialLinks?.linkedin ?? "",
         github: body.socialLinks?.github ?? "",
         twitter: body.socialLinks?.twitter ?? "",
@@ -126,10 +213,10 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
     return () => {
       cancelled = true;
     };
-    // sourceId only changes across full navigations (new id in the URL),
-    // not on every keystroke — safe to depend on it alone.
+    // sourceId/isImport only change across full navigations, not on every
+    // keystroke — safe to depend on them alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceId]);
+  }, [sourceId, isImport]);
 
   function addSkill() {
     const value = skillInput.trim();
@@ -140,6 +227,20 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
 
   function removeSkill(index: number) {
     setForm((f) => ({ ...f, skills: f.skills.filter((_, i) => i !== index) }));
+  }
+
+  function addCertification() {
+    const value = certInput.trim();
+    if (!value) return;
+    setForm((f) => ({ ...f, certifications: [...f.certifications, value] }));
+    setCertInput("");
+  }
+
+  function removeCertification(index: number) {
+    setForm((f) => ({
+      ...f,
+      certifications: f.certifications.filter((_, i) => i !== index),
+    }));
   }
 
   function addExperience() {
@@ -217,6 +318,10 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
       jobTitle: form.jobTitle,
       bio: form.bio || undefined,
       skills: form.skills,
+      certifications: form.certifications,
+      yearsOfExperience: form.yearsOfExperience
+        ? Number(form.yearsOfExperience)
+        : undefined,
       socialLinks: {
         linkedin: form.linkedin || undefined,
         github: form.github || undefined,
@@ -268,6 +373,21 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
+      {contactNote && (
+        <p
+          style={{
+            background: "#eef7ee",
+            padding: 8,
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          {contactNote}{" "}
+          <a href="/profile" target="_blank" rel="noreferrer">
+            Your details
+          </a>
+        </p>
+      )}
       <label style={{ display: "block", marginBottom: 8 }}>
         Job title
         <input
@@ -332,6 +452,63 @@ export function JobProfileForm({ jobProfileId }: { jobProfileId?: string }) {
           Add
         </button>
       </div>
+
+      <h2 style={{ fontSize: 15 }}>Certifications</h2>
+      <div
+        style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}
+      >
+        {form.certifications.map((cert, index) => (
+          <span
+            key={`${cert}-${index}`}
+            style={{
+              background: "#eee",
+              borderRadius: 12,
+              padding: "2px 8px",
+              fontSize: 13,
+            }}
+          >
+            {cert}{" "}
+            <button
+              type="button"
+              onClick={() => removeCertification(index)}
+              style={{ border: "none", background: "none", cursor: "pointer" }}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          value={certInput}
+          onChange={(e) => setCertInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCertification();
+            }
+          }}
+          placeholder="Add a certification"
+          style={{ flex: 1, padding: 6 }}
+        />
+        <button type="button" onClick={addCertification}>
+          Add
+        </button>
+      </div>
+
+      <label style={{ display: "block", marginBottom: 16, maxWidth: 200 }}>
+        Years of experience (optional)
+        <input
+          type="number"
+          min={0}
+          step="0.5"
+          value={form.yearsOfExperience}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, yearsOfExperience: e.target.value }))
+          }
+          style={inputStyle}
+        />
+      </label>
 
       <h2 style={{ fontSize: 15 }}>Social links (optional)</h2>
       <label style={{ display: "block", marginBottom: 8 }}>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ImportResumeButton } from "./import-resume-button";
 
 interface JobProfileSummary {
   id: string;
@@ -99,8 +100,16 @@ export function JobProfileList() {
           </li>
         ))}
       </ul>
-      <p style={{ marginTop: 12 }}>
+      <p
+        style={{
+          marginTop: 12,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
         <Link href="/profile/job-profiles/new">+ New job profile</Link>
+        <ImportResumeButton />
       </p>
     </div>
   );

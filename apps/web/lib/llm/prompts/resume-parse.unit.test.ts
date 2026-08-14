@@ -15,6 +15,12 @@ describe("buildResumeParsePrompt", () => {
     expect(systemPrompt).toContain("ONLY a single JSON object");
     expect(systemPrompt).toContain("experiences");
   });
+
+  it("asks for the headline and bio/about sections distinctly from experience titles", () => {
+    const { systemPrompt } = buildResumeParsePrompt("anything");
+    expect(systemPrompt).toContain("headline");
+    expect(systemPrompt).toContain("About");
+  });
 });
 
 describe("ResumeParseResultSchema", () => {
@@ -30,10 +36,14 @@ describe("ResumeParseResultSchema", () => {
     const result = ResumeParseResultSchema.parse({
       legalName: "Ada Lovelace",
       email: "ada@example.com",
+      headline: "Mathematician & Computing Pioneer",
+      bio: "Mathematician and writer.",
       skills: ["Math"],
       yearsOfExperience: 12,
     });
     expect(result.legalName).toBe("Ada Lovelace");
+    expect(result.headline).toBe("Mathematician & Computing Pioneer");
+    expect(result.bio).toBe("Mathematician and writer.");
     expect(result.yearsOfExperience).toBe(12);
   });
 
@@ -41,5 +51,11 @@ describe("ResumeParseResultSchema", () => {
     expect(() =>
       ResumeParseResultSchema.parse({ email: "not-an-email" }),
     ).toThrow();
+  });
+
+  it("treats an LLM-returned empty string as absent, same as omitting the field", () => {
+    const result = ResumeParseResultSchema.parse({ headline: "", bio: "" });
+    expect(result.headline).toBeUndefined();
+    expect(result.bio).toBeUndefined();
   });
 });
