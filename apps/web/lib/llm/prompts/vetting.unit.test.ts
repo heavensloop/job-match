@@ -85,4 +85,18 @@ describe("buildVettingPrompt", () => {
     expect(systemPrompt).toContain("ONLY a single JSON object");
     expect(systemPrompt).toContain("strong_match");
   });
+
+  it("asks the LLM to address the candidate directly, not by name or in third person", () => {
+    const { systemPrompt } = buildVettingPrompt({
+      person,
+      jobProfile,
+      criteria,
+      jobTitle: "x",
+      company: "y",
+      jobDescriptionText: "z",
+    });
+
+    expect(systemPrompt).toContain("speaking directly to the candidate");
+    expect(systemPrompt).toContain("never their name or third person");
+  });
 });

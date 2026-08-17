@@ -23,7 +23,9 @@ Respond with ONLY a single JSON object, no markdown code fences, no commentary b
   ]
 }
 
-"strengths" and "gaps" may be empty arrays if there's nothing notable. Be specific and grounded in the actual profile and job text — don't invent skills or requirements that aren't there.`;
+"strengths" and "gaps" may be empty arrays if there's nothing notable. Be specific and grounded in the actual profile and job text — don't invent skills or requirements that aren't there.
+
+Write "summary", every "strengths" entry, and every "gaps[].description" as if speaking directly to the candidate — use "you"/"your", never their name or third person (e.g. "you have 11 years of experience" not "the candidate has" or "John has").`;
 
 export function buildVettingPrompt(input: VettingPromptInput): {
   systemPrompt: string;

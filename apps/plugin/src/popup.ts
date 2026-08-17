@@ -79,6 +79,16 @@ async function renderJobInfo() {
     ).toLocaleDateString();
     jobInfoEl.append(textEl("p", `You viewed this on ${seenDate}`, "seen"));
   }
+
+  const draftId = state.vetResult.draft.id;
+  const detailsButton = document.createElement("button");
+  detailsButton.type = "button";
+  detailsButton.textContent = "Show Details";
+  detailsButton.className = "show-details";
+  detailsButton.addEventListener("click", () => {
+    chrome.tabs.create({ url: `${WEB_APP_URL}/application-drafts/${draftId}` });
+  });
+  jobInfoEl.append(detailsButton);
 }
 
 function renderAccount(settings: { pat: string | null }) {
